@@ -8,11 +8,29 @@ version = "0.1.0"
 description = "Unified Celestron AUX Mount Simulator"
 readme = "README.md"
 authors = [{ name = "Jochym", email = "jochym@ifj.edu.pl" }]
-license = { text = "GPL-3.0" }
+license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.11"
+keywords = ["celestron", "aux", "indi", "telescope", "simulator", "astronomy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "pyephem",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jochym/caux-simulator"
+Source = "https://github.com/jochym/caux-simulator"
+Tracker = "https://github.com/jochym/caux-simulator/issues"
 
 [project.optional-dependencies]
 tui = [
