@@ -34,7 +34,7 @@ dev = [
 caux-sim = "caux_simulator.nse_simulator:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"caux_simulator" = "src"}
 packages = ["caux_simulator"]
 
 [tool.setuptools.package-data]
