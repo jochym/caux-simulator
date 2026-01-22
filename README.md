@@ -88,6 +88,20 @@ pip install .[dev]
 pytest
 ```
 
+### Integration Scanning
+
+A scanner script is provided to verify the simulator's availability and protocol compliance by scanning the virtual bus.
+
+```bash
+# Start the simulator in one terminal
+caux-sim
+
+# Run the scanner
+python3 tests/integration_scan.py
+```
+
+This will report all discovered devices (Motor Controllers, Hand Controller, GPS, etc.) and their firmware versions.
+
 ## Architecture
 
 The simulator consists of several components:
@@ -95,3 +109,14 @@ The simulator consists of several components:
 2.  **NSE Simulator (`nse_simulator.py`)**: The networking layer and CLI entry point.
 3.  **NSE TUI (`nse_tui.py`)**: The Textual-based terminal interface.
 4.  **Web Console (`web_console.py`)**: The FastAPI/Three.js based 3D visualization.
+
+## Supported Devices
+
+The simulator emulates the following Celestron AUX devices:
+- **Main Board (0x01)**
+- **Hand Controller (0x04)**
+- **Azimuth Motor (0x10)**: Supports GOTO, SLEW, Sync, Cordwrap
+- **Altitude Motor (0x11)**: Supports GOTO, SLEW, Sync
+- **GPS (0xB0)**: Provides location and time data
+- **Battery (0xB6)**: Reports voltage and status
+- **Lights (0xBF)**: Control for mount lighting
