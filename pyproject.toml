@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caux-simulator"
+version = "0.1.0"
+description = "Unified Celestron AUX Mount Simulator"
+readme = "README.md"
+authors = [{ name = "Jochym", email = "jochym@ifj.edu.pl" }]
+license = { text = "GPL-3.0" }
+requires-python = ">=3.11"
+dependencies = [
+    "pyephem",
+]
+
+[project.optional-dependencies]
+tui = [
+    "textual",
+]
+web = [
+    "fastapi",
+    "uvicorn",
+    "websockets",
+]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+caux-sim = "caux_simulator.nse_simulator:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+caux_simulator = ["*.toml"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
