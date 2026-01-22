@@ -727,10 +727,10 @@ class NexStarScope:
             self.slewing = self.goto = False
 
     def print_msg(self, msg: str) -> None:
-        """Adds a message to the internal log deque."""
+        """Adds a message to the internal log deque and logs it."""
         if not self.msg_log or msg != self.msg_log[-1]:
             self.msg_log.append(msg)
-        logger.info(f"MSG: {msg}")
+        logger.info(msg)
 
     def handle_msg(self, msg: bytes) -> bytes:
         """Main entry point for incoming AUX data stream."""

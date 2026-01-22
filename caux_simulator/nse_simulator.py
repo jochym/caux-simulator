@@ -36,27 +36,21 @@ def deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
-def load_config():
+def load_config(custom_path: Optional[str] = None):
     """Loads configuration from TOML files with deep merge."""
     config: dict[str, Any] = {}
     # 1. Load defaults from package directory
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    # Try looking for config.default.toml in package dir or project root
-    default_paths = [
-        os.path.join(pkg_dir, "config.default.toml"),
-        os.path.join(os.path.dirname(os.path.dirname(pkg_dir)), "config.default.toml"),
-    ]
-    for default_path in default_paths:
-        if os.path.exists(default_path):
-            try:
-                with open(default_path, "rb") as f:
-                    config = tomllib.load(f)
-                    break
-            except Exception as e:
-                logger.error(f"Error loading default config: {e}")
+    default_path = os.path.join(pkg_dir, "config.default.toml")
+    if os.path.exists(default_path):
+        try:
+            with open(default_path, "rb") as f:
+                config = tomllib.load(f)
+        except Exception as e:
+            logger.error(f"Error loading default config: {e}")
 
-    # 2. Load user override from current working directory
-    user_path = os.path.join(BASE_DIR, "config.toml")
+    # 2. Load custom config or default config.toml
+    user_path = custom_path if custom_path else os.path.join(BASE_DIR, "config.toml")
     if os.path.exists(user_path):
         try:
             with open(user_path, "rb") as f:
@@ -68,9 +62,7 @@ def load_config():
     return config
 
 
-config = load_config()
-obs_cfg = config.get("observer", {})
-
+# telescope and connections state
 telescope: Optional[NexStarScope] = None
 connections: List[Any] = []
 
@@ -245,8 +237,17 @@ class StellariumServer(asyncio.Protocol):
 
 
 async def main_async():
-    parser = argparse.ArgumentParser(description="NexStar AUX Simulator")
+    # Initial parse to get config path
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("-c", "--config")
+    pre_args, _ = pre_parser.parse_known_args()
+
+    # Load configuration
+    config = load_config(pre_args.config)
+    obs_cfg = config.get("observer", {})
     sim_cfg = config.get("simulator", {})
+
+    parser = argparse.ArgumentParser(description="NexStar AUX Simulator")
     parser.add_argument(
         "-t", "--text", action="store_true", help="Use text mode (headless)"
     )
@@ -259,6 +260,7 @@ async def main_async():
     parser.add_argument(
         "--debug-log-file", default="caux_sim_debug.log", help="Debug log file path"
     )
+    parser.add_argument("-c", "--config", help="Custom configuration file path")
     parser.add_argument(
         "-p", "--port", type=int, default=sim_cfg.get("aux_port", 2000), help="AUX port"
     )
@@ -289,14 +291,28 @@ async def main_async():
     args = parser.parse_args()
 
     # Configure logging
-    log_level = logging.DEBUG if args.debug or args.debug_log else logging.INFO
+    log_cfg = config.get("logging", {})
+    default_log_level = log_cfg.get("level", "INFO").upper()
+    log_level = (
+        logging.DEBUG
+        if args.debug or args.debug_log
+        else getattr(logging, default_log_level, logging.INFO)
+    )
+
+    log_format = log_cfg.get(
+        "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+
     handlers: List[logging.Handler] = [logging.StreamHandler()]
-    if args.debug_log:
-        handlers.append(logging.FileHandler(args.debug_log_file))
+
+    # File logging from config or args
+    log_file = args.debug_log_file if args.debug_log else log_cfg.get("file")
+    if log_file:
+        handlers.append(logging.FileHandler(log_file))
 
     logging.basicConfig(
         level=log_level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        format=log_format,
         handlers=handlers,
     )
 

@@ -63,7 +63,30 @@ caux-sim --debug-log --debug-log-file my_debug.log
 
 ## Configuration
 
-You can override default settings by creating a `config.toml` file in your current working directory. The simulator loads `config.default.toml` from the package and then merges it with your local `config.toml`.
+You can override default settings by creating a `config.toml` file in your current working directory, or by using the `-c/--config` command-line argument. The simulator loads `config.default.toml` from the package and then merges it with your specified or local `config.toml`.
+
+Example `config.toml`:
+```toml
+[observer]
+latitude = 52.2297
+longitude = 21.0122
+
+[logging]
+level = "DEBUG"
+file = "simulator.log"
+```
+
+## Testing
+
+The project includes a comprehensive test suite using `pytest`.
+
+```bash
+# Install development dependencies
+pip install .[dev]
+
+# Run tests
+pytest
+```
 
 ## Architecture
 

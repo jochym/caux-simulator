@@ -29,3 +29,8 @@ arm_thickness = 0.08
 ota_radius = 0.116
 ota_length = 0.43
 camera_length = 0.12
+
+[logging]
+level = "INFO"
+# file = "caux_sim.log"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
