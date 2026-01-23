@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "caux-simulator"
-version = "0.1.1"
+version = "0.1.3"
 description = "Unified Celestron AUX Mount Simulator"
 readme = "README.md"
 authors = [{ name = "Jochym", email = "jochym@ifj.edu.pl" }]

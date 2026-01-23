@@ -61,7 +61,9 @@ class WebConsole:
                 "grid_size": 10,
                 "grid_divisions": 20,
                 "camera_distance": 4.0,
-                "camera_fov": 35,
+                "camera_fov": 20,
+                "camera_alt": 30,
+                "camera_az": 45,
             },
         )
 
@@ -394,7 +396,11 @@ INDEX_HTML = """
         cam.position.set(0, 0, -geo.ota_length/2 - geo.camera_length/2);
         altGroup.add(cam);
 
-        camera.position.set(geo.camera_distance, geo.camera_distance, geo.camera_distance);
+        const cam_alt = THREE.MathUtils.degToRad(geo.camera_alt);
+        const cam_az = THREE.MathUtils.degToRad(geo.camera_az);
+        camera.position.x = geo.camera_distance * Math.cos(cam_alt) * Math.sin(cam_az);
+        camera.position.y = geo.camera_distance * Math.sin(cam_alt);
+        camera.position.z = geo.camera_distance * Math.cos(cam_alt) * Math.cos(cam_az);
         controls.target.set(0, 0.5, 0);
         controls.update();
 

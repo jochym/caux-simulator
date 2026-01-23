@@ -40,7 +40,9 @@ alt_scale_radius = 0.35
 grid_size = 10
 grid_divisions = 20
 camera_distance = 4.0
-camera_fov = 35
+camera_fov = 20
+camera_alt = 30
+camera_az = 45
 
 [logging]
 level = "INFO"
