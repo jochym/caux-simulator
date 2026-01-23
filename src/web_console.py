@@ -69,90 +69,116 @@ class WebConsole:
         """Broadcasts telescope state to all connected clients."""
         from math import pi, degrees, cos, radians
 
-        while True:
-            if clients:
-                # Update observer time
-                self.obs.date = ephem.now()
-                self.obs.epoch = self.obs.date
+        try:
+            while True:
+                if clients:
+                    # Update observer time
+                    self.obs.date = ephem.now()
+                    self.obs.epoch = self.obs.date
 
-                sky_azm, sky_alt = self.telescope.get_sky_altaz()
-                ra, dec = self.obs.radec_of(sky_azm * 2 * pi, sky_alt * 2 * pi)
+                    sky_azm, sky_alt = self.telescope.get_sky_altaz()
+                    ra, dec = self.obs.radec_of(sky_azm * 2 * pi, sky_alt * 2 * pi)
 
-                # Get nearby stars for schematic sky view
-                stars = []
-                fov_deg = 30.0  # 30 degree field of view
-                for name, body in [
-                    ("Polaris", ephem.star("Polaris")),
-                    ("Sirius", ephem.star("Sirius")),
-                    ("Vega", ephem.star("Vega")),
-                    ("Arcturus", ephem.star("Arcturus")),
-                    ("Capella", ephem.star("Capella")),
-                    ("Rigel", ephem.star("Rigel")),
-                    ("Betelgeuse", ephem.star("Betelgeuse")),
-                    ("Procyon", ephem.star("Procyon")),
-                    ("Altair", ephem.star("Altair")),
-                    ("Deneb", ephem.star("Deneb")),
-                    ("Spica", ephem.star("Spica")),
-                    ("Antares", ephem.star("Antares")),
-                    ("Pollux", ephem.star("Pollux")),
-                    ("Castor", ephem.star("Castor")),
-                ]:
-                    try:
-                        body.compute(self.obs)
-                        # Check if within FOV
-                        dist = ephem.separation(
-                            (body.az, body.alt), (sky_azm * 2 * pi, sky_alt * 2 * pi)
-                        )
-                        if dist < radians(fov_deg):
-                            # Calculate relative X, Y in FOV [-1, 1]
-                            dx = (degrees(body.az) - sky_azm * 360.0) * cos(body.alt)
-                            dy = degrees(body.alt) - sky_alt * 360.0
-                            stars.append(
-                                {
-                                    "name": name,
-                                    "x": dx / (fov_deg / 2),
-                                    "y": dy / (fov_deg / 2),
-                                    "mag": body.mag,
-                                }
+                    # Get nearby stars for schematic sky view
+                    stars = []
+                    fov_deg = 30.0  # 30 degree field of view
+                    for name, body in [
+                        ("Polaris", ephem.star("Polaris")),
+                        ("Sirius", ephem.star("Sirius")),
+                        ("Vega", ephem.star("Vega")),
+                        ("Arcturus", ephem.star("Arcturus")),
+                        ("Capella", ephem.star("Capella")),
+                        ("Rigel", ephem.star("Rigel")),
+                        ("Betelgeuse", ephem.star("Betelgeuse")),
+                        ("Procyon", ephem.star("Procyon")),
+                        ("Altair", ephem.star("Altair")),
+                        ("Deneb", ephem.star("Deneb")),
+                        ("Spica", ephem.star("Spica")),
+                        ("Antares", ephem.star("Antares")),
+                        ("Pollux", ephem.star("Pollux")),
+                        ("Castor", ephem.star("Castor")),
+                    ]:
+                        try:
+                            body.compute(self.obs)
+                            # Check if within FOV
+                            dist = ephem.separation(
+                                (body.az, body.alt),
+                                (sky_azm * 2 * pi, sky_alt * 2 * pi),
                             )
-                    except Exception:
-                        continue
+                            if dist < radians(fov_deg):
+                                # Calculate relative X, Y in FOV [-1, 1]
+                                dx = (degrees(body.az) - sky_azm * 360.0) * cos(
+                                    body.alt
+                                )
+                                dy = degrees(body.alt) - sky_alt * 360.0
+                                stars.append(
+                                    {
+                                        "name": name,
+                                        "x": dx / (fov_deg / 2),
+                                        "y": dy / (fov_deg / 2),
+                                        "mag": body.mag,
+                                    }
+                                )
+                        except Exception:
+                            continue
 
-                state = {
-                    "azm": sky_azm * 360.0,
-                    "alt": sky_alt * 360.0,
-                    "ra": str(ra),
-                    "dec": str(dec),
-                    "v_azm": (self.telescope.azm_rate + self.telescope.azm_guiderate)
-                    * 360.0,
-                    "v_alt": (self.telescope.alt_rate + self.telescope.alt_guiderate)
-                    * 360.0,
-                    "slewing": self.telescope.slewing,
-                    "guiding": self.telescope.guiding,
-                    "voltage": self.telescope.bat_voltage / 1e6,
-                    "current": 0.2 + (1.0 if self.telescope.slewing else 0.0),
-                    "timestamp": self.telescope.sim_time,
-                    "stars": stars,
-                }
-                message = json.dumps(state)
-                disconnected = set()
-                for client in clients:
-                    try:
-                        await client.send_text(message)
-                    except Exception:
-                        disconnected.add(client)
+                    state = {
+                        "azm": sky_azm * 360.0,
+                        "alt": sky_alt * 360.0,
+                        "ra": str(ra),
+                        "dec": str(dec),
+                        "v_azm": (
+                            self.telescope.azm_rate + self.telescope.azm_guiderate
+                        )
+                        * 360.0,
+                        "v_alt": (
+                            self.telescope.alt_rate + self.telescope.alt_guiderate
+                        )
+                        * 360.0,
+                        "slewing": self.telescope.slewing,
+                        "guiding": self.telescope.guiding,
+                        "voltage": self.telescope.bat_voltage / 1e6,
+                        "current": 0.2 + (1.0 if self.telescope.slewing else 0.0),
+                        "timestamp": self.telescope.sim_time,
+                        "stars": stars,
+                    }
+                    message = json.dumps(state)
+                    disconnected = set()
+                    for client in clients:
+                        try:
+                            await client.send_text(message)
+                        except Exception:
+                            disconnected.add(client)
 
-                for d in disconnected:
-                    clients.remove(d)
+                    for d in disconnected:
+                        clients.remove(d)
 
-            await asyncio.sleep(0.1)
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            pass
 
     def run(self) -> None:
         """Starts the uvicorn server in the background."""
         config = uvicorn.Config(app, host=self.host, port=self.port, log_level="error")
-        server = uvicorn.Server(config)
-        self.server_task = asyncio.create_task(server.serve())
-        asyncio.create_task(self.broadcast_state())
+        self.server = uvicorn.Server(config)
+        self.server_task = asyncio.create_task(self.server.serve())
+        self.broadcast_task = asyncio.create_task(self.broadcast_state())
+
+    async def stop(self) -> None:
+        """Gracefully stops the web console server and tasks."""
+        if hasattr(self, "server"):
+            self.server.should_exit = True
+        if hasattr(self, "broadcast_task"):
+            self.broadcast_task.cancel()
+
+        tasks = []
+        if hasattr(self, "server_task"):
+            tasks.append(self.server_task)
+        if hasattr(self, "broadcast_task"):
+            tasks.append(self.broadcast_task)
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @app.websocket("/ws")
@@ -162,8 +188,11 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             await websocket.receive_text()
-    except WebSocketDisconnect:
-        clients.remove(websocket)
+    except (WebSocketDisconnect, asyncio.CancelledError):
+        pass
+    finally:
+        if websocket in clients:
+            clients.remove(websocket)
 
 
 @app.get("/")

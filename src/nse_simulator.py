@@ -65,6 +65,8 @@ def load_config(custom_path: Optional[str] = None):
 # telescope and connections state
 telescope: Optional[NexStarScope] = None
 connections: List[Any] = []
+background_tasks: List[asyncio.Task] = []
+web_console_instance: Optional[Any] = None
 
 # --- Network Helpers ---
 
@@ -333,9 +335,9 @@ async def main_async():
 
     telescope = NexStarScope(tui=not args.text, config=config)
 
-    asyncio.create_task(broadcast(sport=args.port))
-    asyncio.create_task(timer(0.1, telescope))
-    asyncio.create_task(report_scope_pos(0.1, telescope, obs))
+    background_tasks.append(asyncio.create_task(broadcast(sport=args.port)))
+    background_tasks.append(asyncio.create_task(timer(0.1, telescope)))
+    background_tasks.append(asyncio.create_task(report_scope_pos(0.1, telescope, obs)))
 
     if args.web:
         try:
@@ -344,8 +346,11 @@ async def main_async():
             except (ImportError, ValueError):
                 from web_console import WebConsole  # type: ignore
 
-            web = WebConsole(telescope, obs, host=args.web_host, port=args.web_port)
-            web.run()
+            global web_console_instance
+            web_console_instance = WebConsole(
+                telescope, obs, host=args.web_host, port=args.web_port
+            )
+            web_console_instance.run()
         except ImportError:
             logger.error("Error: Web dependencies (fastapi, uvicorn) not installed.")
             logger.info("Run: pip install .[web]")
@@ -381,6 +386,16 @@ async def main_async():
 
     scope_server.close()
     stell_server.close()
+
+    # Graceful shutdown of background tasks
+    if web_console_instance:
+        await web_console_instance.stop()
+
+    for task in background_tasks:
+        task.cancel()
+
+    if background_tasks:
+        await asyncio.gather(*background_tasks, return_exceptions=True)
 
 
 def main():
