@@ -60,7 +60,8 @@ class WebConsole:
                 "alt_scale_radius": 0.35,
                 "grid_size": 10,
                 "grid_divisions": 20,
-                "camera_distance": 2.0,
+                "camera_distance": 4.0,
+                "camera_fov": 35,
             },
         )
 
@@ -224,7 +225,7 @@ INDEX_HTML = """
         const geo = MOUNT_GEOMETRY_PLACEHOLDER;
         
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const camera = new THREE.PerspectiveCamera(geo.camera_fov, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
