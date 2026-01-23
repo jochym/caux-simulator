@@ -48,10 +48,19 @@ class WebConsole:
                 "base_height": 0.18,
                 "fork_height": 0.42,
                 "fork_width": 0.22,
-                "arm_thickness": 0.1,
-                "ota_radius": 0.125,
+                "arm_thickness": 0.08,
+                "ota_radius": 0.116,
                 "ota_length": 0.43,
                 "camera_length": 0.12,
+                "label_font_size": 48,
+                "label_cardinal_scale": 0.3,
+                "label_scale_scale": 0.24,
+                "indicator_size": 0.02,
+                "az_scale_radius": 0.45,
+                "alt_scale_radius": 0.35,
+                "grid_size": 10,
+                "grid_divisions": 20,
+                "camera_distance": 2.0,
             },
         )
 
@@ -229,10 +238,10 @@ INDEX_HTML = """
         scene.add(new THREE.AmbientLight(0x404040));
 
         // Grid & Axis
-        scene.add(new THREE.GridHelper(10, 20, 0x414868, 0x24283b));
+        scene.add(new THREE.GridHelper(geo.grid_size, geo.grid_divisions, 0x414868, 0x24283b));
         
         // --- Utility for text labels ---
-        function createLabel(text, color = '#7aa2f7', fontSize = 72, scale = 0.4) {
+        function createLabel(text, color = '#7aa2f7', fontSize = geo.label_font_size, scale = geo.label_cardinal_scale) {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 256;
@@ -268,8 +277,8 @@ INDEX_HTML = """
             const length = isMajor ? 0.08 : 0.04;
             const rad = THREE.MathUtils.degToRad(i);
             const tickGeom = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(Math.sin(rad) * 0.45, 0, Math.cos(rad) * 0.45),
-                new THREE.Vector3(Math.sin(rad) * (0.45 + length), 0, Math.cos(rad) * (0.45 + length))
+                new THREE.Vector3(Math.sin(rad) * geo.az_scale_radius, 0, Math.cos(rad) * geo.az_scale_radius),
+                new THREE.Vector3(Math.sin(rad) * (geo.az_scale_radius + length), 0, Math.cos(rad) * (geo.az_scale_radius + length))
             ]);
             const tick = new THREE.Line(tickGeom, scaleMaterial);
             // Azimuth 0 is North (Z+)
@@ -277,8 +286,8 @@ INDEX_HTML = """
             azScale.add(tick);
             
             if (isMajor) {
-                const label = createLabel(i.toString(), '#565f89', 72, 0.4);
-                label.position.set(Math.sin(rad) * 0.65, 0, Math.cos(rad) * 0.65);
+                const label = createLabel(i.toString(), '#565f89', geo.label_font_size, geo.label_scale_scale);
+                label.position.set(Math.sin(rad) * (geo.az_scale_radius + 0.2), 0, Math.cos(rad) * (geo.az_scale_radius + 0.2));
                 azScale.add(label);
             }
         }
@@ -291,15 +300,15 @@ INDEX_HTML = """
         scene.add(azmGroup);
 
         // Azimuth Indicator Dot (Red - Viewing Direction Z+)
-        const azDot = new THREE.Mesh(new THREE.SphereGeometry(0.02), indicatorMaterial);
-        azDot.position.set(0, 0.02, 0.45);
+        const azDot = new THREE.Mesh(new THREE.SphereGeometry(geo.indicator_size), indicatorMaterial);
+        azDot.position.set(0, geo.indicator_size, geo.az_scale_radius);
         azmGroup.add(azDot);
 
         // Cardinal points
-        const cardinalN = createLabel("N", "#f7768e", 48, 0.3); cardinalN.position.set(0, geo.base_height, 0.8); scene.add(cardinalN);
-        const cardinalS = createLabel("S", "#7aa2f7", 48, 0.3); cardinalS.position.set(0, geo.base_height, -0.8); scene.add(cardinalS);
-        const cardinalE = createLabel("E", "#7aa2f7", 48, 0.3); cardinalE.position.set(0.9, geo.base_height, 0); scene.add(cardinalE);
-        const cardinalW = createLabel("W", "#7aa2f7", 48, 0.3); cardinalW.position.set(-0.9, geo.base_height, 0); scene.add(cardinalW);
+        const cardinalN = createLabel("N", "#f7768e", geo.label_font_size, geo.label_cardinal_scale); cardinalN.position.set(0, geo.base_height, 0.8); scene.add(cardinalN);
+        const cardinalS = createLabel("S", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalS.position.set(0, geo.base_height, -0.8); scene.add(cardinalS);
+        const cardinalE = createLabel("E", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalE.position.set(0.9, geo.base_height, 0); scene.add(cardinalE);
+        const cardinalW = createLabel("W", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalW.position.set(-0.9, geo.base_height, 0); scene.add(cardinalW);
 
         // Fork Arm
         const arm = new THREE.Mesh(new THREE.BoxGeometry(geo.arm_thickness, geo.fork_height, 0.2), mountMaterial);
@@ -314,7 +323,7 @@ INDEX_HTML = """
 
         // Altitude Scale (Vertical radial lines stationary on the fork)
         const altScale = new THREE.Group();
-        const altRadius = 0.35;
+        const altRadius = geo.alt_scale_radius;
         for (let i = -20; i <= 90; i += 10) {
             const isMajor = i % 30 === 0;
             const length = isMajor ? 0.08 : 0.04;
@@ -327,7 +336,7 @@ INDEX_HTML = """
             altScale.add(tick);
             
             if (isMajor) {
-                const label = createLabel(i.toString(), '#565f89', 72, 0.4);
+                const label = createLabel(i.toString(), '#565f89', geo.label_font_size, geo.label_scale_scale);
                 label.position.set(0.05, Math.sin(rad) * (altRadius + 0.15), Math.cos(rad) * (altRadius + 0.15));
                 altScale.add(label);
             }
@@ -341,8 +350,8 @@ INDEX_HTML = """
         azmGroup.add(altGroup);
 
         // Altitude Indicator Dot (Moves with OTA)
-        const altDot = new THREE.Mesh(new THREE.SphereGeometry(0.02), indicatorMaterial);
-        altDot.position.set(geo.fork_width + geo.arm_thickness/2 + 0.02, 0, altRadius);
+        const altDot = new THREE.Mesh(new THREE.SphereGeometry(geo.indicator_size), indicatorMaterial);
+        altDot.position.set(geo.fork_width + geo.arm_thickness/2 + geo.indicator_size, 0, altRadius);
         altGroup.add(altDot);
 
         // OTA
@@ -355,7 +364,7 @@ INDEX_HTML = """
         cam.position.set(0, 0, -geo.ota_length/2 - geo.camera_length/2);
         altGroup.add(cam);
 
-        camera.position.set(2, 2, 2);
+        camera.position.set(geo.camera_distance, geo.camera_distance, geo.camera_distance);
         controls.target.set(0, 0.5, 0);
         controls.update();
 
