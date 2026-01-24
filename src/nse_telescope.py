@@ -240,6 +240,7 @@ class NexStarScope:
         self._other_handlers = {
             0x10: self.cmd_0x10,
             0x18: self.cmd_0x18,
+            0x31: self.wifi_cmd_0x31,  # Handle command 0x31 for WiFi device
             0x32: self.wifi_cmd_0x32,  # Handle command 0x32 for WiFi device
             0x49: self.wifi_cmd_0x49,  # Handle command 0x49 for WiFi device
             0xFE: self.fw_version,
@@ -363,6 +364,15 @@ class NexStarScope:
                 self.bat_current = max(2000, min(5000, i))
             return struct.pack("!i", int(self.bat_current))[-2:]
         return b""
+
+    def wifi_cmd_0x31(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Handler for WiFi command 0x31."""
+        nselog.log_command(
+            logger, f"WIFI_CMD_0x31: from={snd:02x}, to={rcv:02x}, data={data.hex()}"
+        )
+        # Return a placeholder response to prevent hangs - actual response depends on implementation
+        # Based on the data pattern 4248b732419e46aa, this might be a configuration request
+        return b"\x01"  # Return success status
 
     def wifi_cmd_0x49(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Handler for WiFi command 0x49."""
