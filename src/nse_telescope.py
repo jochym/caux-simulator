@@ -303,8 +303,8 @@ class NexStarScope:
             0x01: self.get_pwr_voltage,
             0x02: self.get_pwr_current,
             0x03: self.get_pwr_status,
-            0x10: self.motor_set_command_ack,  # MC_SET_POS_BACKLASH sent to BAT/CHG -> Ack
-            0x18: self.motor_query_done_ack,  # MC_SEEK_DONE sent to BAT/CHG -> 0xFF (Done)
+            0x10: self.cmd_0x10,
+            0x18: self.cmd_0x18,
             0xFE: self.fw_version,
         }
 
@@ -400,20 +400,6 @@ class NexStarScope:
                 logger, f"IGNORING 0x3F cmd to device 0x{rcv:02x}", logging.DEBUG
             )
             return b""
-
-    def motor_set_command_ack(self, data: bytes, snd: int, rcv: int) -> bytes:
-        """Handler for motor SET commands (like 0x10) sent to power devices."""
-        nselog.log_command(
-            logger, f"MOTOR_SET_ACK: Command {snd:02x}->{rcv:02x}, data={data.hex()}"
-        )
-        return b""  # Return empty Ack
-
-    def motor_query_done_ack(self, data: bytes, snd: int, rcv: int) -> bytes:
-        """Handler for motor DONE queries (like 0x18) sent to power devices."""
-        nselog.log_command(
-            logger, f"MOTOR_DONE_ACK: Command {snd:02x}->{rcv:02x}, data={data.hex()}"
-        )
-        return b"\xff"  # Return "Done" status
 
     def wifi_cmd_0x32(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Handler for WiFi command 0x32."""
@@ -902,8 +888,12 @@ class NexStarScope:
                 t_name = trg_names.get(t, f"0x{t:02x}")
                 f_name = trg_names.get(f, f"0x{f:02x}")
 
-                # Only simulate devices that are present in the system
-                # Non-simulated devices should be completely silent (no echo, no response)
+                # Always echo the packet to the bus, as the main board would do.
+                # This ensures the sender knows the bus is alive.
+                echo = b";" + cmd
+                responses.append(echo)
+
+                # Only simulate responses for devices that are present in the system
                 simulated_devices = (
                     0x01,  # Main Board
                     0x04,
@@ -920,13 +910,10 @@ class NexStarScope:
                 if t not in simulated_devices and t != 0x00:
                     nselog.log_command(
                         logger,
-                        f"Ignoring packet to non-existent device {t_name}",
+                        f"Ignoring command to non-simulated device {t_name}",
                         logging.DEBUG,
                     )
                     continue
-
-                echo = b";" + cmd
-                responses.append(echo)
 
                 nselog.log_command(
                     logger, f"{f_name} -> {t_name}: {c_name} data={d.hex()}"
