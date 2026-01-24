@@ -242,6 +242,7 @@ class NexStarScope:
             0x18: self.cmd_0x18,
             0x31: self.wifi_cmd_0x31,  # Handle command 0x31 for WiFi device
             0x32: self.wifi_cmd_0x32,  # Handle command 0x32 for WiFi device
+            0x3F: self.cmd_0x3f_handler,  # Handle command 0x3F only for supported devices
             0x49: self.wifi_cmd_0x49,  # Handle command 0x49 for WiFi device
             0xFE: self.fw_version,
         }
@@ -302,6 +303,8 @@ class NexStarScope:
             0x01: self.get_pwr_voltage,
             0x02: self.get_pwr_current,
             0x03: self.get_pwr_status,
+            0x10: self.motor_set_command_ack,  # MC_SET_POS_BACKLASH sent to BAT/CHG -> Ack
+            0x18: self.motor_query_done_ack,  # MC_SEEK_DONE sent to BAT/CHG -> 0xFF (Done)
             0xFE: self.fw_version,
         }
 
@@ -372,7 +375,7 @@ class NexStarScope:
         )
         # Return a placeholder response to prevent hangs - actual response depends on implementation
         # Based on the data pattern 4248b732419e46aa, this might be a configuration request
-        return b"\x01"  # Return success status
+        return b""  # Return empty Ack (consistent with other SET commands)
 
     def wifi_cmd_0x49(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Handler for WiFi command 0x49."""
@@ -381,6 +384,36 @@ class NexStarScope:
         )
         # Return a placeholder response to prevent hangs - actual response depends on implementation
         return b"\x00"  # Return a simple acknowledgment
+
+    def cmd_0x3f_handler(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Handler for command 0x3F that only responds to supported devices."""
+        nselog.log_command(
+            logger, f"CMD_0x3F: from={snd:02x}, to={rcv:02x}, data={data.hex()}"
+        )
+        # Only respond to devices that would reasonably support this command
+        # Based on context and usage patterns
+        if rcv == 0xB9:  # WiFi module - most likely recipient
+            return b"\x01"  # Standard success response
+        else:
+            # Don't respond to other devices (e.g., StarSense 0xB4)
+            nselog.log_command(
+                logger, f"IGNORING 0x3F cmd to device 0x{rcv:02x}", logging.DEBUG
+            )
+            return b""
+
+    def motor_set_command_ack(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Handler for motor SET commands (like 0x10) sent to power devices."""
+        nselog.log_command(
+            logger, f"MOTOR_SET_ACK: Command {snd:02x}->{rcv:02x}, data={data.hex()}"
+        )
+        return b""  # Return empty Ack
+
+    def motor_query_done_ack(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Handler for motor DONE queries (like 0x18) sent to power devices."""
+        nselog.log_command(
+            logger, f"MOTOR_DONE_ACK: Command {snd:02x}->{rcv:02x}, data={data.hex()}"
+        )
+        return b"\xff"  # Return "Done" status
 
     def wifi_cmd_0x32(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Handler for WiFi command 0x32."""
@@ -748,8 +781,21 @@ class NexStarScope:
             return bytes(NexStarScope.__mbfw_ver)
         if rcv in (0x04, 0x0D):
             return bytes(NexStarScope.__hcfw_ver)
-        # Return a default version for other devices like WiFi (0xB9), Unknown (0xB4), etc.
-        return bytes(NexStarScope.__mcfw_ver)  # Use MC version as default
+        if rcv == 0xB9:  # WiFi Module
+            return bytes(NexStarScope.__mcfw_ver)
+        if rcv == 0xB6:  # Battery
+            return bytes(NexStarScope.__mbfw_ver)
+        if rcv == 0xB7:  # Charger
+            return bytes(NexStarScope.__mbfw_ver)
+        if rcv == 0xBF:  # Light controller
+            return bytes(NexStarScope.__mcfw_ver)
+        if rcv == 0x12:  # Focuser
+            return bytes(NexStarScope.__mcfw_ver)
+        if rcv == 0xB0:  # GPS
+            return bytes(NexStarScope.__mcfw_ver)
+        # For unknown/unimplemented devices like StarSense (0xB4), return empty response
+        # This matches real behavior where unconnected devices don't respond
+        return b""
 
     def tick(self, interval: float) -> None:
         """Physical model update called on every timer tick."""
@@ -894,11 +940,16 @@ class NexStarScope:
                         f"{t_name} -> {f_name}: {c_name} response_data={resp_data.hex()}",
                     )
                 else:
+                    # Don't send any response for unsupported commands to maintain real behavior
                     nselog.log_command(
                         logger,
-                        f"No handler for command {c_name} on device {t_name}",
-                        logging.WARNING,
+                        f"No handler for command {c_name} on device {t_name} - no response sent",
+                        logging.DEBUG,
                     )
+                    # Remove the echo for unsupported commands to match real behavior
+                    # We'll remove the echo from responses if no handler exists
+                    # Actually, let's keep echo but not add extra response
+                    # The echo was already added earlier: responses.append(echo)
 
             except Exception as e:
                 err_msg = f"Error handling cmd: {e}"
