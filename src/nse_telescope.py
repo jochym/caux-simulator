@@ -375,7 +375,7 @@ class NexStarScope:
         )
         # Return a placeholder response to prevent hangs - actual response depends on implementation
         # Based on the data pattern 4248b732419e46aa, this might be a configuration request
-        return b""  # Return empty Ack (consistent with other SET commands)
+        return b"\x01"  # Return success status (SkySafari expects this for WiFi)
 
     def wifi_cmd_0x49(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Handler for WiFi command 0x49."""
@@ -898,12 +898,35 @@ class NexStarScope:
                     f"Packet: len={l} src={f:02x} dst={t:02x} cmd={c:02x} data={d.hex()} chk={s:02x}",
                 )
 
-                echo = b";" + cmd
-                responses.append(echo)
-
                 c_name = cmd_names.get(c, f"0x{c:02x}")
                 t_name = trg_names.get(t, f"0x{t:02x}")
                 f_name = trg_names.get(f, f"0x{f:02x}")
+
+                # Only simulate devices that are present in the system
+                # Non-simulated devices should be completely silent (no echo, no response)
+                simulated_devices = (
+                    0x01,  # Main Board
+                    0x04,
+                    0x0D,  # Hand Controllers
+                    0x10,
+                    0x11,  # Motor Controllers
+                    0xB0,  # GPS
+                    0xB6,
+                    0xB7,  # Battery / Charger
+                    0xB9,  # WiFi Module
+                    0xBF,  # Lights
+                )
+
+                if t not in simulated_devices and t != 0x00:
+                    nselog.log_command(
+                        logger,
+                        f"Ignoring packet to non-existent device {t_name}",
+                        logging.DEBUG,
+                    )
+                    continue
+
+                echo = b";" + cmd
+                responses.append(echo)
 
                 nselog.log_command(
                     logger, f"{f_name} -> {t_name}: {c_name} data={d.hex()}"
@@ -916,11 +939,8 @@ class NexStarScope:
                     handlers = self._gps_handlers
                 elif t in (0xB6, 0xB7):
                     handlers = self._power_handlers
-                elif t in (0x01, 0x04, 0x0D, 0xB9, 0xBF):
-                    handlers = self._other_handlers
                 else:
-                    # Non-simulated devices (like Focuser 0x12, StarSense 0xB4)
-                    handlers = {}
+                    handlers = self._other_handlers
 
                 if c in handlers:
                     resp_data = handlers[c](d, f, t)
