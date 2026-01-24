@@ -763,11 +763,9 @@ class NexStarScope:
         if rcv in (0x10, 0x11):
             return bytes(NexStarScope.__mcfw_ver)
         if rcv == 0x01:
-            return bytes(NexStarScope.__mbfw_ver)
-        if rcv in (0x04, 0x0D):
-            return bytes(NexStarScope.__hcfw_ver)
+            return bytes([0x02, 0x00, 0x00, 0x00])  # Main board version
         if rcv == 0xB9:  # WiFi Module
-            return bytes(NexStarScope.__mcfw_ver)
+            return bytes([0x02, 0x28, 0x00, 0x00])  # version 2.40
         if rcv == 0xB6:  # Battery
             return bytes(NexStarScope.__mbfw_ver)
         if rcv == 0xB7:  # Charger
@@ -890,8 +888,6 @@ class NexStarScope:
                 # Only simulate responses for devices that are present in the system
                 simulated_devices = (
                     0x01,  # Main Board
-                    0x04,
-                    0x0D,  # Hand Controllers
                     0x10,
                     0x11,  # Motor Controllers
                     0xB0,  # GPS

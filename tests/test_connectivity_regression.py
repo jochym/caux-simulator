@@ -71,9 +71,11 @@ class TestSkySafari7Handshake(unittest.TestCase):
 
     def test_01_wifi_handshake(self):
         """WiFi module (0xB9) initial handshake sequence."""
-        # 1. GET_VER
+        # 1. GET_VER - Should return version 2.40 (02 28 00 00)
         resp = self.exchange(0xB9, 0x20, 0xFE)
-        self.assertGreater(len(resp), 3, "WiFi Module should return version")
+        self.assertEqual(
+            resp[5:9], bytes([2, 40, 0, 0]), "WiFi Module should return version 2.40"
+        )
 
         # 2. Command 0x49 (Status/Ping)
         resp = self.exchange(0xB9, 0x20, 0x49)
@@ -136,20 +138,28 @@ class TestSkySafari7Handshake(unittest.TestCase):
         )
 
     def test_05_accessory_silence(self):
-        """Verifies that dropped devices (Focuser, StarSense) only return their echo."""
+        """Verifies that dropped devices (Focuser, StarSense, HC) are completely silent."""
+
+        def check_silence(dest):
+            pkt = encode_packet(0x20, dest, 0xFE)
+            self.sock.send(pkt)
+            time.sleep(0.1)
+            try:
+                resp = self.sock.recv(1024)
+                self.assertEqual(
+                    len(resp), 0, f"Device {hex(dest)} should return NOTHING"
+                )
+            except socket.timeout:
+                pass  # Success
+
         # 1. Focuser (0x12)
-        pkt = encode_packet(0x20, 0x12, 0xFE)
-        self.sock.send(pkt)
-        time.sleep(0.2)
-        resp = self.sock.recv(1024)
-        self.assertEqual(resp, pkt, "Focuser should return ONLY echo")
+        check_silence(0x12)
 
         # 2. StarSense (0xB4)
-        pkt = encode_packet(0x20, 0xB4, 0xFE)
-        self.sock.send(pkt)
-        time.sleep(0.2)
-        resp = self.sock.recv(1024)
-        self.assertEqual(resp, pkt, "StarSense should return ONLY echo")
+        check_silence(0xB4)
+
+        # 3. Hand Controller (0x04)
+        check_silence(0x04)
 
 
 if __name__ == "__main__":
