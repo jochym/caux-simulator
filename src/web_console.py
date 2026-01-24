@@ -12,10 +12,10 @@ import uvicorn
 import ephem
 
 try:
-    from .nse_telescope import NexStarScope
+    from .bus.mount import NexStarMount
     from . import __version__
 except (ImportError, ValueError):
-    from nse_telescope import NexStarScope  # type: ignore
+    from bus.mount import NexStarMount  # type: ignore
     from __init__ import __version__  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ mount_geometry: Dict[str, Any] = {}
 class WebConsole:
     def __init__(
         self,
-        telescope: NexStarScope,
+        telescope: NexStarMount,
         obs: ephem.Observer,
         host: str = "127.0.0.1",
         port: int = 8080,

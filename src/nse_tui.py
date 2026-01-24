@@ -14,10 +14,12 @@ from textual.containers import Horizontal, Vertical
 from textual.binding import Binding
 
 try:
-    from .nse_telescope import NexStarScope, repr_angle
+    from .bus.mount import NexStarMount
+    from .nse_telescope import repr_angle
     from . import __version__
 except (ImportError, ValueError):
-    from nse_telescope import NexStarScope, repr_angle  # type: ignore
+    from bus.mount import NexStarMount  # type: ignore
+    from nse_telescope import repr_angle  # type: ignore
     from __init__ import __version__  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,7 @@ class SimulatorApp(App):
 
     def __init__(
         self,
-        tel: NexStarScope,
+        tel: NexStarMount,
         obs: ephem.Observer,
         args: Any,
         obs_cfg: Dict[str, Any],

@@ -16,13 +16,15 @@ from math import pi
 import math
 
 try:
-    from .nse_telescope import NexStarScope, trg_names, cmd_names
+    from .nse_telescope import trg_names, cmd_names
     from . import nse_logging as nselog
     from . import __version__
+    from .bus.mount import NexStarMount
 except ImportError:
-    from nse_telescope import NexStarScope, trg_names, cmd_names  # type: ignore
+    from nse_telescope import trg_names, cmd_names  # type: ignore
     import nse_logging as nselog  # type: ignore
     from __init__ import __version__  # type: ignore
+    from bus.mount import NexStarMount  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ def load_config(custom_path: Optional[str] = None):
 
 
 # telescope and connections state
-telescope: Optional[NexStarScope] = None
+telescope: Optional[NexStarMount] = None
 connections: List[Any] = []
 background_tasks: List[asyncio.Task] = []
 web_console_instance: Optional[Any] = None
@@ -96,7 +98,7 @@ async def broadcast(
 
 
 async def timer(
-    seconds_to_sleep: float = 1.0, tel: Optional[NexStarScope] = None
+    seconds_to_sleep: float = 1.0, tel: Optional[NexStarMount] = None
 ) -> None:
     """Timer loop to trigger physical model updates (ticks)."""
     from time import time
@@ -177,7 +179,7 @@ def from_le(b: bytes) -> int:
     return int.from_bytes(b, "little")
 
 
-def handle_stellarium_cmd(tel: NexStarScope, d: bytes) -> int:
+def handle_stellarium_cmd(tel: NexStarMount, d: bytes) -> int:
     """Parses incoming Stellarium Goto commands."""
     p = 0
     while p < len(d) - 2:
@@ -195,7 +197,7 @@ def handle_stellarium_cmd(tel: NexStarScope, d: bytes) -> int:
     return p
 
 
-def make_stellarium_status(tel: NexStarScope, obs: ephem.Observer) -> bytes:
+def make_stellarium_status(tel: NexStarMount, obs: ephem.Observer) -> bytes:
     """Generates Stellarium status packet (Position report)."""
     obs.date = ephem.now()
     obs.epoch = obs.date  # Use JNow
@@ -213,7 +215,7 @@ def make_stellarium_status(tel: NexStarScope, obs: ephem.Observer) -> bytes:
 
 async def report_scope_pos(
     sleep: float = 0.1,
-    scope: Optional[NexStarScope] = None,
+    scope: Optional[NexStarMount] = None,
     obs: Optional[ephem.Observer] = None,
 ) -> None:
     """Broadcasts current position to all connected Stellarium clients."""
@@ -230,7 +232,7 @@ async def report_scope_pos(
 class StellariumServer(asyncio.Protocol):
     """Asynchronous protocol implementation for Stellarium TCP server."""
 
-    def __init__(self, tel: Optional[NexStarScope], obs: ephem.Observer) -> None:
+    def __init__(self, tel: Optional[NexStarMount], obs: ephem.Observer) -> None:
         self.telescope = tel
         self.obs = obs
         self.transport: Optional[asyncio.Transport] = None
@@ -403,7 +405,7 @@ async def main_async():
     obs.elevation = float(obs_cfg.get("elevation", 400))
     obs.pressure = 0
 
-    telescope = NexStarScope(tui=not args.text, config=config)
+    telescope = NexStarMount(config=config)
 
     background_tasks.append(asyncio.create_task(broadcast(sport=args.port)))
     background_tasks.append(asyncio.create_task(timer(0.1, telescope)))
