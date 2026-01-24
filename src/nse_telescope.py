@@ -369,13 +369,12 @@ class NexStarScope:
         return b""
 
     def wifi_cmd_0x31(self, data: bytes, snd: int, rcv: int) -> bytes:
-        """Handler for WiFi command 0x31."""
+        """Handler for WiFi command 0x31 (Set Location)."""
         nselog.log_command(
             logger, f"WIFI_CMD_0x31: from={snd:02x}, to={rcv:02x}, data={data.hex()}"
         )
-        # Return a placeholder response to prevent hangs - actual response depends on implementation
-        # Based on the data pattern 4248b732419e46aa, this might be a configuration request
-        return b"\x01"  # Return success status (SkySafari expects this for WiFi)
+        # Placeholder success response - actual parsing of float data to be implemented during refactoring
+        return b"\x01"
 
     def wifi_cmd_0x49(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Handler for WiFi command 0x49."""

@@ -73,10 +73,13 @@ src/
 2.  **Foundation**: Implement `AuxBus` and `AuxDevice` base classes.
 3.  **Incremental Porting**:
     *   Create `MotorController` and move physics logic from `NexStarScope`.
-    *   Create `WiFiModule` and move the new handlers we just added.
+    *   Create `WiFiModule` and move the new handshake handlers (`0x31`, `0x32`, `0x49`).
     *   Create `GPSReceiver` and move GPS handlers.
+    *   Create `PowerModule` for Battery (`0xB6`) and Charger (`0xB7`).
 4.  **Integration**: Update `nse_simulator.py` to instantiate `AuxBus` instead of `NexStarScope`.
-5.  **Validation**: Use the existing test suite (`test_full_sky_safari.py`, etc.) to verify behavioral parity.
+5.  **Device Presence Filter**: Implement the verified "Absolute Silence" strategy in the `AuxBus`: only devices explicitly registered on the bus will receive packets; others will be ignored (no echo, no response) to simulate physical absence. This eliminates unnecessary delays during initial sequence scanning.
+6.  **Validation**: Use the existing test suite (`test_final_verification.py`, etc.) to verify behavioral parity.
+
 
 ## Future Benefits
 
