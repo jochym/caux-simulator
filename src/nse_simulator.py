@@ -17,8 +17,10 @@ import math
 
 try:
     from .nse_telescope import NexStarScope, trg_names, cmd_names
+    from . import nse_logging as nselog
 except ImportError:
     from nse_telescope import NexStarScope, trg_names, cmd_names  # type: ignore
+    import nse_logging as nselog  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +115,7 @@ async def handle_port2000(
     transparent = True
     global telescope
     connected = False
+    peer_addr = writer.get_extra_info("peername")
 
     while True:
         try:
@@ -121,12 +124,13 @@ async def handle_port2000(
                 writer.close()
                 if telescope:
                     telescope.print_msg("Connection closed.")
+                    nselog.log_connection(logger, f"Client {peer_addr} disconnected")
                 return
             elif not connected:
                 if telescope:
-                    telescope.print_msg(
-                        f"Client connected from {writer.get_extra_info('peername')}"
-                    )
+                    conn_msg = f"Client connected from {peer_addr}"
+                    telescope.print_msg(conn_msg)
+                    nselog.log_connection(logger, conn_msg)
                 connected = True
 
             resp = b""
@@ -134,6 +138,9 @@ async def handle_port2000(
                 if data[:3] == b"$$$":
                     transparent = False
                     resp = b"CMD\r\n"
+                    nselog.log_connection(
+                        logger, f"Client {peer_addr} entered WiFly command mode"
+                    )
                 else:
                     if telescope:
                         resp = telescope.handle_msg(data)
@@ -142,6 +149,9 @@ async def handle_port2000(
                 if message == "exit":
                     transparent = True
                     resp = data + b"\r\nEXIT\r\n"
+                    nselog.log_connection(
+                        logger, f"Client {peer_addr} exited WiFly command mode"
+                    )
                 else:
                     resp = data + b"\r\nAOK\r\n<2.40-CEL> "
 
@@ -151,6 +161,9 @@ async def handle_port2000(
         except Exception as e:
             if telescope:
                 telescope.print_msg(f"Error handling AUX port: {e}")
+            nselog.log_connection(
+                logger, f"Error on connection from {peer_addr}: {e}", logging.ERROR
+            )
             break
 
 
@@ -223,13 +236,20 @@ class StellariumServer(asyncio.Protocol):
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport  # type: ignore
         connections.append(transport)
+        peer_addr = transport.get_extra_info("peername")
         if self.telescope:
-            self.telescope.print_msg("Stellarium client connected.")
+            msg = "Stellarium client connected."
+            self.telescope.print_msg(msg)
+            nselog.log_connection(logger, f"{msg} from {peer_addr}")
 
     def connection_lost(self, exc: Optional[Exception]) -> None:
         try:
             if self.transport:
+                peer_addr = self.transport.get_extra_info("peername")
                 connections.remove(self.transport)
+                nselog.log_connection(
+                    logger, f"Stellarium client disconnected from {peer_addr}"
+                )
         except Exception:
             pass
 
@@ -254,13 +274,27 @@ async def main_async():
         "-t", "--text", action="store_true", help="Use text mode (headless)"
     )
     parser.add_argument(
-        "-d", "--debug", action="store_true", help="Enable debug logging to stderr"
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging to stderr (INFO level)",
     )
     parser.add_argument(
-        "--debug-log", action="store_true", help="Enable detailed debug logging to file"
+        "-d", "--debug", action="store_true", help="Enable debug logging (DEBUG level)"
     )
     parser.add_argument(
-        "--debug-log-file", default="caux_sim_debug.log", help="Debug log file path"
+        "--log-file",
+        help="Log to file instead of stderr",
+    )
+    parser.add_argument(
+        "--log-stderr",
+        action="store_true",
+        help="Log to stderr in addition to file (when --log-file is used)",
+    )
+    parser.add_argument(
+        "--log-categories",
+        type=int,
+        help="Detailed logging categories bitmask: CONNECTION=1, PROTOCOL=2, COMMAND=4, MOTION=8, DEVICE=16",
     )
     parser.add_argument("-c", "--config", help="Custom configuration file path")
     parser.add_argument(
@@ -295,28 +329,60 @@ async def main_async():
     # Configure logging
     log_cfg = config.get("logging", {})
     default_log_level = log_cfg.get("level", "INFO").upper()
-    log_level = (
-        logging.DEBUG
-        if args.debug or args.debug_log
-        else getattr(logging, default_log_level, logging.INFO)
-    )
+
+    # Determine log level
+    if args.debug:
+        log_level = logging.DEBUG
+    elif args.verbose:
+        log_level = logging.INFO
+    else:
+        log_level = getattr(logging, default_log_level, logging.WARNING)
 
     log_format = log_cfg.get(
         "format", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
-    handlers: List[logging.Handler] = [logging.StreamHandler()]
+    # Determine log file and handlers
+    log_file = args.log_file or log_cfg.get("file")
+    handlers: List[logging.Handler] = []
 
-    # File logging from config or args
-    log_file = args.debug_log_file if args.debug_log else log_cfg.get("file")
     if log_file:
+        # Logging to file
         handlers.append(logging.FileHandler(log_file))
+        # Only add stderr if explicitly requested or no file specified in config
+        if args.log_stderr or args.log_file is None:
+            handlers.append(logging.StreamHandler())
+    else:
+        # No file logging, just stderr
+        handlers.append(logging.StreamHandler())
 
     logging.basicConfig(
         level=log_level,
         format=log_format,
         handlers=handlers,
     )
+
+    if log_file:
+        logger.info(f"Logging to file: {log_file}")
+        if args.log_stderr or args.log_file is None:
+            logger.info("Also logging to stderr")
+
+    # Configure detailed logging categories
+    log_categories = (
+        args.log_categories
+        if args.log_categories is not None
+        else log_cfg.get("categories", 0)
+    )
+    nselog.set_log_categories(log_categories)
+
+    if log_categories:
+        logger.info(
+            f"Enabled logging categories: {nselog.describe_log_categories(log_categories)}"
+        )
+    else:
+        logger.info(
+            "Detailed logging categories disabled (set logging.categories in config to enable)"
+        )
 
     if args.perfect:
         if "simulator" in config and "imperfections" in config["simulator"]:

@@ -1,0 +1,35 @@
+# Example configuration with comprehensive logging enabled
+# Copy this to config.toml and modify as needed
+
+[observer]
+name = "My Observatory"
+latitude = 50.1822
+longitude = 19.7925
+elevation = 400
+
+[simulator]
+aux_port = 2000
+stellarium_port = 10001
+
+[logging]
+level = "DEBUG"
+file = "caux_sim.log"
+format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Detailed logging categories (bitmask):
+# CONNECTION = 1  - Connection events (connect, disconnect, clients)
+# PROTOCOL   = 2  - Raw AUX protocol packets (bytes, checksums)
+# COMMAND    = 4  - Decoded commands and responses
+# MOTION     = 8  - Movement and positioning (GOTO, slew, rates)
+# DEVICE     = 16 - Device state (battery, GPS, lights, etc.)
+#
+# Combine values to enable multiple categories:
+#   categories = 7   # CONNECTION + PROTOCOL + COMMAND (1+2+4)
+#   categories = 31  # All categories (1+2+4+8+16)
+#
+# For debugging SkySafari connection issues, use:
+categories = 7  # CONNECTION + PROTOCOL + COMMAND
+
+# Note: Command-line options override these settings
+# Example: python -m src.nse_simulator -d --log-file debug.log --log-categories 31
+

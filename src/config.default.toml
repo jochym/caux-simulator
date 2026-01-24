@@ -41,10 +41,18 @@ grid_size = 10
 grid_divisions = 20
 camera_distance = 4.0
 camera_fov = 20
-camera_alt = 30
-camera_az = 45
+camera_alt = 20
+camera_az = 300
 
 [logging]
 level = "INFO"
 # file = "caux_sim.log"
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Detailed logging categories (bitmask values can be combined)
+# Categories: CONNECTION=1, PROTOCOL=2, COMMAND=4, MOTION=8, DEVICE=16
+# Examples:
+#   categories = 0     # No detailed logging (default)
+#   categories = 7     # CONNECTION + PROTOCOL + COMMAND (1+2+4)
+#   categories = 31    # All categories (1+2+4+8+16)
+categories = 0

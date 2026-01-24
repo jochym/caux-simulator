@@ -13,6 +13,11 @@ from math import pi, sin, radians, tan
 from collections import deque
 from typing import List, Tuple, Dict, Any, Optional, Union, Deque
 
+try:
+    from . import nse_logging as nselog
+except ImportError:
+    import nse_logging as nselog  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 # ID tables from Celestron AUX Protocol
@@ -235,6 +240,8 @@ class NexStarScope:
         self._other_handlers = {
             0x10: self.cmd_0x10,
             0x18: self.cmd_0x18,
+            0x32: self.wifi_cmd_0x32,  # Handle command 0x32 for WiFi device
+            0x49: self.wifi_cmd_0x49,  # Handle command 0x49 for WiFi device
             0xFE: self.fw_version,
         }
         self._mc_handlers = {
@@ -245,6 +252,8 @@ class NexStarScope:
             0x06: self.set_pos_guiderate,
             0x07: self.set_neg_guiderate,
             0x0B: self.level_start,
+            0x10: self.set_backlash,
+            0x11: self.set_backlash,
             0x12: self.level_done,
             0x13: self.slew_done,
             0x17: self.goto_slow,
@@ -261,6 +270,9 @@ class NexStarScope:
             0x3A: self.set_cordwrap_pos,
             0x3B: self.get_cordwrap,
             0x3C: self.get_cordwrap_pos,
+            0x40: self.get_backlash,
+            0x41: self.get_backlash,
+            0x47: self.get_autoguide_rate,
             0xFC: self.get_approach,
             0xFD: self.set_approach,
             0xFF: self.get_sky_position_aux,
@@ -315,10 +327,13 @@ class NexStarScope:
             if len(data) == 2:
                 if data[0] == 0:
                     self.lt_tray = data[1]
+                    nselog.log_device(logger, f"Set tray light to {self.lt_tray}")
                 elif data[0] == 1:
                     self.lt_logo = data[1]
+                    nselog.log_device(logger, f"Set logo light to {self.lt_logo}")
                 else:
                     self.lt_wifi = data[1]
+                    nselog.log_device(logger, f"Set wifi light to {self.lt_wifi}")
                 return b""
             elif len(data) == 1:
                 if data[0] == 0:
@@ -330,11 +345,13 @@ class NexStarScope:
         elif rcv == 0xB7:  # CHG
             if len(data):
                 self.charge = bool(data[0])
+                nselog.log_device(logger, f"Set charging state to {self.charge}")
                 return b""
             else:
                 return bytes([int(self.charge)])
         elif rcv == 0xB6:  # BAT
             self.bat_voltage = int(self.bat_voltage * 0.99)
+            nselog.log_device(logger, f"Battery voltage: {self.bat_voltage / 1e6:.2f}V")
             return bytes.fromhex("0102") + struct.pack("!i", int(self.bat_voltage))
         return b""
 
@@ -346,6 +363,23 @@ class NexStarScope:
                 self.bat_current = max(2000, min(5000, i))
             return struct.pack("!i", int(self.bat_current))[-2:]
         return b""
+
+    def wifi_cmd_0x49(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Handler for WiFi command 0x49."""
+        nselog.log_command(
+            logger, f"WIFI_CMD_0x49: from={snd:02x}, to={rcv:02x}, data={data.hex()}"
+        )
+        # Return a placeholder response to prevent hangs - actual response depends on implementation
+        return b"\x00"  # Return a simple acknowledgment
+
+    def wifi_cmd_0x32(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Handler for WiFi command 0x32."""
+        nselog.log_command(
+            logger, f"WIFI_CMD_0x32: from={snd:02x}, to={rcv:02x}, data={data.hex()}"
+        )
+        # Return a placeholder response to prevent hangs - actual response depends on implementation
+        # This might be a configuration/set command that returns status
+        return b"\x01"  # Return success status
 
     def get_position(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Returns current MC position as 3-byte fraction with optional jitter."""
@@ -388,18 +422,28 @@ class NexStarScope:
 
     def goto_fast(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Starts a high-speed GOTO movement."""
-        logger.debug(f"GOTO_FAST: target={hex(rcv)} pos={unpack_int3(data):.4f}")
+        target_pos = unpack_int3(data)
+        nselog.log_command(logger, f"GOTO_FAST: target={hex(rcv)} pos={target_pos:.6f}")
+        nselog.log_motion(
+            logger,
+            f"Starting GOTO_FAST to {target_pos:.6f} on {'ALT' if rcv == 0x11 else 'AZM'}",
+        )
+
         self.last_cmd = "GOTO_FAST"
         self.slewing = self.goto = True
         self.guiding = False
         self.alt_guiderate = self.azm_guiderate = 0.0
         r = (self.alt_maxrate if rcv == 0x11 else self.azm_maxrate) / (360e3)
-        a = unpack_int3(data)
+        a = target_pos
         if rcv == 0x11:
             if a > 0.5:
                 a -= 1.0
             self.trg_alt = a
             self.alt_rate = r if a > self.alt else -r
+            nselog.log_motion(
+                logger,
+                f"ALT: current={self.alt:.6f} target={self.trg_alt:.6f} rate={self.alt_rate:.6f}",
+            )
         else:
             self.trg_azm = a % 1.0
             diff = self.trg_azm - self.azm
@@ -408,6 +452,10 @@ class NexStarScope:
             if diff < -0.5:
                 diff += 1.0
             self.azm_rate = r if diff > 0 else -r
+            nselog.log_motion(
+                logger,
+                f"AZM: current={self.azm:.6f} target={self.trg_azm:.6f} rate={self.azm_rate:.6f}",
+            )
         return b""
 
     def set_position(self, data: bytes, snd: int, rcv: int) -> bytes:
@@ -432,8 +480,16 @@ class NexStarScope:
         self.guiding = abs(a) > 0
         if rcv == 0x11:
             self.alt_guiderate = a
+            nselog.log_motion(
+                logger,
+                f"Set ALT guide rate to {a:.9f} ({factor * val / 1024.0:.2f} arcsec/s)",
+            )
         else:
             self.azm_guiderate = a
+            nselog.log_motion(
+                logger,
+                f"Set AZM guide rate to {a:.9f} ({factor * val / 1024.0:.2f} arcsec/s)",
+            )
         return b""
 
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
@@ -520,11 +576,17 @@ class NexStarScope:
 
     def move_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Starts a constant-rate positive movement."""
-        logger.debug(f"MOVE_POS: target={hex(rcv)} rate_idx={data[0]}")
+        rate_idx = int(data[0])
+        nselog.log_command(logger, f"MOVE_POS: target={hex(rcv)} rate_idx={rate_idx}")
+        nselog.log_motion(
+            logger,
+            f"Starting positive movement on {'ALT' if rcv == 0x11 else 'AZM'} at rate {RATES.get(rate_idx, 0.0) * 360:.6f} deg/s",
+        )
+
         self.last_cmd = "MOVE_POS"
         self.slewing = True
         self.goto = False
-        r = RATES[int(data[0])]
+        r = RATES[rate_idx]
         if rcv == 0x11:
             self.alt_rate = r
         else:
@@ -533,11 +595,17 @@ class NexStarScope:
 
     def move_neg(self, data: bytes, snd: int, rcv: int) -> bytes:
         """Starts a constant-rate negative movement."""
-        logger.debug(f"MOVE_NEG: target={hex(rcv)} rate_idx={data[0]}")
+        rate_idx = int(data[0])
+        nselog.log_command(logger, f"MOVE_NEG: target={hex(rcv)} rate_idx={rate_idx}")
+        nselog.log_motion(
+            logger,
+            f"Starting negative movement on {'ALT' if rcv == 0x11 else 'AZM'} at rate {-RATES.get(rate_idx, 0.0) * 360:.6f} deg/s",
+        )
+
         self.last_cmd = "MOVE_NEG"
         self.slewing = True
         self.goto = False
-        r = RATES[int(data[0])]
+        r = RATES[rate_idx]
         if rcv == 0x11:
             self.alt_rate = -r
         else:
@@ -563,7 +631,12 @@ class NexStarScope:
         return pack_int3(self.cordwrap_pos)
 
     def get_autoguide_rate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        return b"\xf0"
+        """Returns the autoguide rate setting."""
+        nselog.log_command(
+            logger, f"GET_AUTOGUIDE_RATE ({'ALT' if rcv == 0x11 else 'AZM'})"
+        )
+        # Return a standard value (e.g., 240 for 1x sidereal rate)
+        return bytes([240])  # 240 corresponds to 1x sidereal rate
 
     def get_focus_position(self, data: bytes, snd: int, rcv: int) -> bytes:
         return pack_int3(self.focus_pos / 16777216.0)
@@ -635,6 +708,24 @@ class NexStarScope:
             self.azm_approach = data[0]
         return b""
 
+    def get_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Returns the backlash compensation steps."""
+        val = int(self.backlash_steps) & 0xFF
+        nselog.log_command(
+            logger, f"GET_BACKLASH ({'ALT' if rcv == 0x11 else 'AZM'}): {val}"
+        )
+        return bytes([val])
+
+    def set_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """Sets the backlash compensation steps."""
+        if len(data) > 0:
+            val = int(data[0])
+            self.backlash_steps = val
+            nselog.log_command(
+                logger, f"SET_BACKLASH ({'ALT' if rcv == 0x11 else 'AZM'}): {val}"
+            )
+        return b""
+
     def get_sky_position_aux(self, data: bytes, snd: int, rcv: int) -> bytes:
         sky_azm, sky_alt = self.get_sky_altaz()
         pos = sky_alt if rcv == 0x11 else sky_azm
@@ -647,7 +738,8 @@ class NexStarScope:
             return bytes(NexStarScope.__mbfw_ver)
         if rcv in (0x04, 0x0D):
             return bytes(NexStarScope.__hcfw_ver)
-        return b""
+        # Return a default version for other devices like WiFi (0xB9), Unknown (0xB4), etc.
+        return bytes(NexStarScope.__mcfw_ver)  # Use MC version as default
 
     def tick(self, interval: float) -> None:
         """Physical model update called on every timer tick."""
@@ -734,18 +826,37 @@ class NexStarScope:
 
     def handle_msg(self, msg: bytes) -> bytes:
         """Main entry point for incoming AUX data stream."""
+        nselog.log_protocol(logger, f"RX: {msg.hex()} ({len(msg)} bytes)")
+
         responses = []
         for cmd in split_cmds(msg):
             try:
                 c, f, t, l, d, s = decode_command(cmd)
-                if make_checksum(cmd[:-1]) != s:
-                    self.print_msg(f"Checksum error in cmd: {cmd.hex()}")
+                checksum_calc = make_checksum(cmd[:-1])
+
+                if checksum_calc != s:
+                    err_msg = f"Checksum error in cmd: {cmd.hex()} (expected {checksum_calc:02x}, got {s:02x})"
+                    self.print_msg(err_msg)
+                    nselog.log_protocol(logger, err_msg, logging.WARNING)
                     continue
+
+                nselog.log_protocol(
+                    logger,
+                    f"Packet: len={l} src={f:02x} dst={t:02x} cmd={c:02x} data={d.hex()} chk={s:02x}",
+                )
+
                 echo = b";" + cmd
                 responses.append(echo)
+
                 c_name = cmd_names.get(c, f"0x{c:02x}")
                 t_name = trg_names.get(t, f"0x{t:02x}")
+                f_name = trg_names.get(f, f"0x{f:02x}")
+
+                nselog.log_command(
+                    logger, f"{f_name} -> {t_name}: {c_name} data={d.hex()}"
+                )
                 self.cmd_log.append(f"{t_name}: {c_name}")
+
                 if t in (0x10, 0x11):
                     handlers = self._mc_handlers
                 elif t == 0x12:
@@ -756,6 +867,7 @@ class NexStarScope:
                     handlers = self._power_handlers
                 else:
                     handlers = self._other_handlers
+
                 if c in handlers:
                     resp_data = handlers[c](d, f, t)
                     header = bytes((len(resp_data) + 3, t, f, c))
@@ -766,7 +878,29 @@ class NexStarScope:
                         + bytes((make_checksum(header + resp_data),))
                     )
                     responses.append(resp_payload)
+                    nselog.log_protocol(logger, f"TX response: {resp_payload.hex()}")
+                    nselog.log_command(
+                        logger,
+                        f"{t_name} -> {f_name}: {c_name} response_data={resp_data.hex()}",
+                    )
+                else:
+                    nselog.log_command(
+                        logger,
+                        f"No handler for command {c_name} on device {t_name}",
+                        logging.WARNING,
+                    )
+
             except Exception as e:
-                self.print_msg(f"Error handling cmd: {e}")
+                err_msg = f"Error handling cmd: {e}"
+                self.print_msg(err_msg)
                 logger.exception("Error handling AUX message")
-        return b"".join(responses)
+                nselog.log_protocol(
+                    logger, f"Exception processing {cmd.hex()}: {e}", logging.ERROR
+                )
+
+        full_response = b"".join(responses)
+        if full_response:
+            nselog.log_protocol(
+                logger, f"TX: {full_response.hex()} ({len(full_response)} bytes)"
+            )
+        return full_response
