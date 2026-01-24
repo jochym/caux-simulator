@@ -789,12 +789,9 @@ class NexStarScope:
             return bytes(NexStarScope.__mbfw_ver)
         if rcv == 0xBF:  # Light controller
             return bytes(NexStarScope.__mcfw_ver)
-        if rcv == 0x12:  # Focuser
-            return bytes(NexStarScope.__mcfw_ver)
         if rcv == 0xB0:  # GPS
             return bytes(NexStarScope.__mcfw_ver)
-        # For unknown/unimplemented devices like StarSense (0xB4), return empty response
-        # This matches real behavior where unconnected devices don't respond
+        # For unknown/unimplemented devices like StarSense (0xB4) or Focuser (0x12), return empty response
         return b""
 
     def tick(self, interval: float) -> None:
@@ -915,14 +912,15 @@ class NexStarScope:
 
                 if t in (0x10, 0x11):
                     handlers = self._mc_handlers
-                elif t == 0x12:
-                    handlers = self._focuser_handlers
                 elif t == 0xB0:
                     handlers = self._gps_handlers
                 elif t in (0xB6, 0xB7):
                     handlers = self._power_handlers
-                else:
+                elif t in (0x01, 0x04, 0x0D, 0xB9, 0xBF):
                     handlers = self._other_handlers
+                else:
+                    # Non-simulated devices (like Focuser 0x12, StarSense 0xB4)
+                    handlers = {}
 
                 if c in handlers:
                     resp_data = handlers[c](d, f, t)
