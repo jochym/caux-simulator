@@ -887,11 +887,6 @@ class NexStarScope:
                 t_name = trg_names.get(t, f"0x{t:02x}")
                 f_name = trg_names.get(f, f"0x{f:02x}")
 
-                # Always echo the packet to the bus, as the main board would do.
-                # This ensures the sender knows the bus is alive.
-                echo = b";" + cmd
-                responses.append(echo)
-
                 # Only simulate responses for devices that are present in the system
                 simulated_devices = (
                     0x01,  # Main Board
@@ -912,7 +907,12 @@ class NexStarScope:
                         f"Ignoring command to non-simulated device {t_name}",
                         logging.DEBUG,
                     )
-                    continue
+                    continue  # Skip echo and response
+
+                # Always echo the packet to the bus, as the main board would do.
+                # This ensures the sender knows the bus is alive.
+                echo = b";" + cmd
+                responses.append(echo)
 
                 nselog.log_command(
                     logger, f"{f_name} -> {t_name}: {c_name} data={d.hex()}"

@@ -18,9 +18,11 @@ import math
 try:
     from .nse_telescope import NexStarScope, trg_names, cmd_names
     from . import nse_logging as nselog
+    from . import __version__
 except ImportError:
     from nse_telescope import NexStarScope, trg_names, cmd_names  # type: ignore
     import nse_logging as nselog  # type: ignore
+    from __init__ import __version__  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -383,6 +385,8 @@ async def main_async():
         logger.info(
             "Detailed logging categories disabled (set logging.categories in config to enable)"
         )
+
+    logger.info(f"NexStar AUX Simulator version {__version__}")
 
     if args.perfect:
         if "simulator" in config and "imperfections" in config["simulator"]:

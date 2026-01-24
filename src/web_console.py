@@ -13,12 +13,14 @@ import ephem
 
 try:
     from .nse_telescope import NexStarScope
+    from . import __version__
 except (ImportError, ValueError):
     from nse_telescope import NexStarScope  # type: ignore
+    from __init__ import __version__  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(title="NexStar AUX Simulator Console", version=__version__)
 
 # Connected WebSocket clients
 clients: Set[WebSocket] = set()
@@ -199,8 +201,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/")
 async def get():
-    # Inject geometry into the HTML
+    # Inject geometry and version into the HTML
     html = INDEX_HTML.replace("MOUNT_GEOMETRY_PLACEHOLDER", json.dumps(mount_geometry))
+    html = html.replace("{VERSION_PLACEHOLDER}", __version__)
     return HTMLResponse(content=html)
 
 
@@ -208,7 +211,7 @@ INDEX_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Celestron AUX 3D Console</title>
+    <title>Celestron AUX 3D Console v{VERSION_PLACEHOLDER}</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1b26; color: #7aa2f7; font-family: monospace; }
         #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 25vw; min-width: 250px; font-size: 1.1vw; }
@@ -231,6 +234,7 @@ INDEX_HTML = """
 <body>
     <div id="info">
         <h2 style="margin-top:0; border-bottom: 1px solid #414868; padding-bottom: 5px; font-size: 1.5vw;">AUX Digital Twin</h2>
+        <div style="font-size: 0.8vw; color: #565f89; margin-bottom: 10px;">Simulator Version: {VERSION_PLACEHOLDER}</div>
         <div id="telemetry">
             <div class="telemetry-row"><span>AZM:</span> <span id="azm" class="cyan">0.00</span>° (<span id="v_azm" class="blue">0.0</span>°/s)</div>
             <div class="telemetry-row"><span>ALT:</span> <span id="alt" class="cyan">0.00</span>° (<span id="v_alt" class="blue">0.0</span>°/s)</div>

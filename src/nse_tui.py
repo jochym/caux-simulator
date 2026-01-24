@@ -15,8 +15,10 @@ from textual.binding import Binding
 
 try:
     from .nse_telescope import NexStarScope, repr_angle
+    from . import __version__
 except (ImportError, ValueError):
     from nse_telescope import NexStarScope, repr_angle  # type: ignore
+    from __init__ import __version__  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,14 @@ class SimulatorApp(App):
     CSS = """
     Screen {
         background: #1a1b26;
+    }
+    
+    #version-bar {
+        background: #414868;
+        color: #7aa2f7;
+        text-align: right;
+        padding: 0 1;
+        height: 1;
     }
     
     #main-layout {
@@ -83,6 +93,7 @@ class SimulatorApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
+        yield Static(f"NexStar AUX Simulator v{__version__}", id="version-bar")
         with Horizontal(id="main-layout"):
             with Vertical(id="left-panel"):
                 yield Static("MOUNT POSITION", classes="panel-title")
