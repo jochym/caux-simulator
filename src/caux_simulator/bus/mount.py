@@ -47,8 +47,10 @@ class NexStarMount:
         self.bus.register_device(self.alt_motor)
 
         # 2. Initialize Power
-        self.bus.register_device(PowerModule(0xB6, config))  # BAT
-        self.bus.register_device(PowerModule(0xB7, config))  # CHG
+        self.bat_module = PowerModule(0xB6, config)
+        self.chg_module = PowerModule(0xB7, config)
+        self.bus.register_device(self.bat_module)
+        self.bus.register_device(self.chg_module)
 
         # 3. Initialize WiFi
         self.bus.register_device(WiFiModule(0xB9, config))
@@ -65,6 +67,93 @@ class NexStarMount:
         self.pe_period = imp.get("periodic_error_period_sec", 480.0)
         self.refraction_enabled = imp.get("refraction_enabled", False)
         self.clock_drift = imp.get("clock_drift", 0.0)
+
+    # --- UI Compatibility Accessors ---
+
+    @property
+    def azm(self) -> float:
+        return self.azm_motor.pos
+
+    @azm.setter
+    def azm(self, val: float):
+        self.azm_motor.pos = val
+
+    @property
+    def alt(self) -> float:
+        return self.alt_motor.pos
+
+    @alt.setter
+    def alt(self, val: float):
+        self.alt_motor.pos = val
+
+    @property
+    def azm_rate(self) -> float:
+        return self.azm_motor.rate
+
+    @property
+    def alt_rate(self) -> float:
+        return self.alt_motor.rate
+
+    @property
+    def azm_guiderate(self) -> float:
+        return self.azm_motor.guide_rate
+
+    @property
+    def alt_guiderate(self) -> float:
+        return self.alt_motor.guide_rate
+
+    @property
+    def slewing(self) -> bool:
+        return self.azm_motor.slewing or self.alt_motor.slewing
+
+    @slewing.setter
+    def slewing(self, val: bool):
+        self.azm_motor.slewing = val
+        self.alt_motor.slewing = val
+
+    @property
+    def goto(self) -> bool:
+        return self.azm_motor.goto or self.alt_motor.goto
+
+    @goto.setter
+    def goto(self, val: bool):
+        self.azm_motor.goto = val
+        self.alt_motor.goto = val
+
+    @property
+    def trg_alt(self) -> float:
+        return self.alt_motor.trg_pos
+
+    @trg_alt.setter
+    def trg_alt(self, val: float):
+        self.alt_motor.trg_pos = val
+
+    @property
+    def trg_azm(self) -> float:
+        return self.azm_motor.trg_pos
+
+    @trg_azm.setter
+    def trg_azm(self, val: float):
+        self.azm_motor.trg_pos = val
+
+    @property
+    def guiding(self) -> bool:
+        return (
+            abs(self.azm_motor.guide_rate) > 1e-15
+            or abs(self.alt_motor.guide_rate) > 1e-15
+        )
+
+    @property
+    def bat_voltage(self) -> int:
+        return self.bat_module.voltage
+
+    @property
+    def backlash_steps(self) -> int:
+        return self.azm_motor.backlash_steps
+
+    @property
+    def jitter_sigma(self) -> float:
+        return self.azm_motor.jitter_sigma
 
     def tick(self, dt: float) -> None:
         """Update simulation clock and propagate to all devices."""

@@ -13,19 +13,7 @@ import sys
 import time
 import os
 
-# --- Protocol Helpers ---
-
-
-def make_checksum(data: bytes) -> int:
-    return (~sum(data) + 1) & 0xFF
-
-
-def encode_packet(src: int, dst: int, cmd: int, data: bytes = b"") -> bytes:
-    length = len(data) + 3
-    header = bytes([length, src, dst, cmd])
-    payload = header + data
-    return b";" + payload + bytes([make_checksum(payload)])
-
+from caux_simulator.bus.utils import encode_packet, make_checksum
 
 # --- Regression Tests ---
 
@@ -37,10 +25,11 @@ class TestSkySafari7Handshake(unittest.TestCase):
     def setUpClass(cls):
         # Start simulator in a background process
         cls.sim_proc = subprocess.Popen(
-            [sys.executable, "-m", "src.nse_simulator", "--text"],
+            [sys.executable, "-m", "caux_simulator.nse_simulator", "--text"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd="/home/jochym/Projects/indi/caux-simulator",
+            env={**os.environ, "PYTHONPATH": "src"},
         )
         time.sleep(2)  # Wait for startup
 

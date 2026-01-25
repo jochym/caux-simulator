@@ -62,3 +62,11 @@ def f2dms(f: float) -> Tuple[int, int, float]:
     mm = int((d - dd) * 60)
     ss = (d - dd - mm / 60) * 3600
     return dd, mm, ss
+
+
+def encode_packet(src: int, dst: int, cmd: int, data: bytes = b"") -> bytes:
+    """Helper to encode a standard AUX packet."""
+    length = len(data) + 3
+    header = bytes([length, src, dst, cmd])
+    payload = header + data
+    return b";" + payload + bytes([make_checksum(payload)])

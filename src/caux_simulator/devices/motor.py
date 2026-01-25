@@ -160,6 +160,22 @@ class MotorController(AuxDevice):
         if not self.slewing and abs(self.guide_rate) < 1e-15:
             return
 
+        # GOTO deceleration logic
+        if self.goto:
+            diff = self.trg_pos - self.pos
+            if self.device_id == 0x10:
+                if diff > 0.5:
+                    diff -= 1.0
+                elif diff < -0.5:
+                    diff += 1.0
+
+            # Slow down near target
+            s = 1 if diff > 0 else -1
+            r = abs(self.rate)
+            if r * interval >= abs(diff):
+                r = abs(diff) / interval
+            self.rate = s * r
+
         move = (self.rate + self.guide_rate) * interval
 
         # Backlash Logic
@@ -172,11 +188,10 @@ class MotorController(AuxDevice):
             if self.backlash_rem > 0:
                 consumed = min(abs(move), self.backlash_rem)
                 self.backlash_rem -= consumed
-                move = (
-                    0.0
-                    if abs(move) <= consumed
-                    else (move - (consumed if move > 0 else -consumed))
-                )
+                if abs(move) <= consumed:
+                    move = 0.0
+                else:
+                    move = (abs(move) - consumed) * (1 if move > 0 else -1)
 
         self.pos = self.pos + move
         if self.device_id == 0x10:  # AZM Wraps
@@ -191,7 +206,7 @@ class MotorController(AuxDevice):
                 elif diff < -0.5:
                     diff += 1.0
 
-            if abs(diff) < 1e-5:  # Close enough
+            if abs(diff) < 1e-7:
                 self.pos = self.trg_pos
                 self.rate = 0.0
                 self.slewing = self.goto = False
