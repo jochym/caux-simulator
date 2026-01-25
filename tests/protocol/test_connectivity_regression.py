@@ -25,12 +25,22 @@ class TestSkySafari7Handshake(unittest.TestCase):
     def setUpClass(cls):
         # Start simulator in a background process
         cls.sim_proc = subprocess.Popen(
-            [sys.executable, "-m", "caux_simulator.nse_simulator", "--text"],
+            [
+                sys.executable,
+                "-m",
+                "caux_simulator.nse_simulator",
+                "--text",
+                "--log-categories",
+                "31",
+                "--log-file",
+                "test_debug.log",
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd="/home/jochym/Projects/indi/caux-simulator",
             env={**os.environ, "PYTHONPATH": "src"},
         )
+
         time.sleep(2)  # Wait for startup
 
     @classmethod
@@ -127,28 +137,40 @@ class TestSkySafari7Handshake(unittest.TestCase):
         )
 
     def test_05_accessory_silence(self):
-        """Verifies that dropped devices (Focuser, StarSense, HC) are completely silent."""
+        """Verifies that dropped devices (Focuser, StarSense, HC) only return their echo."""
 
-        def check_silence(dest):
+        def check_echo_only(dest):
             pkt = encode_packet(0x20, dest, 0xFE)
             self.sock.send(pkt)
             time.sleep(0.1)
             try:
                 resp = self.sock.recv(1024)
+                # Should receive exactly the echo (pkt)
                 self.assertEqual(
-                    len(resp), 0, f"Device {hex(dest)} should return NOTHING"
+                    resp, pkt, f"Device {hex(dest)} should return ONLY echo"
                 )
+
+                # Verify no more data follows (timeout)
+                self.sock.settimeout(0.2)
+                try:
+                    extra = self.sock.recv(1024)
+                    self.fail(f"Device {hex(dest)} sent extra data: {extra.hex()}")
+                except socket.timeout:
+                    pass  # Correct
+                finally:
+                    self.sock.settimeout(1.0)
+
             except socket.timeout:
-                pass  # Success
+                self.fail(f"Device {hex(dest)} did not return echo")
 
         # 1. Focuser (0x12)
-        check_silence(0x12)
+        check_echo_only(0x12)
 
         # 2. StarSense (0xB4)
-        check_silence(0xB4)
+        check_echo_only(0xB4)
 
         # 3. Hand Controller (0x04)
-        check_silence(0x04)
+        check_echo_only(0x04)
 
 
 if __name__ == "__main__":
