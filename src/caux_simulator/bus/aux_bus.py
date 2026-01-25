@@ -59,11 +59,12 @@ class AuxBus:
                     continue
 
                 # 2. Device Presence Filter (Silence Strategy)
-                # If target device isn't simulated, ignore COMPLETELY (no echo, no response)
+                # If target device isn't simulated, be COMPLETELY silent (no echo, no response).
+                # This triggers a protocol timeout in the client, signaling physical absence.
                 if dst_id not in self.devices and dst_id != 0x00:
                     nselog.log_command(
                         logger,
-                        f"Ignoring packet to non-existent device {hex(dst_id)}",
+                        f"Ignoring command to non-simulated device {hex(dst_id)}",
                         logging.DEBUG,
                     )
                     continue
@@ -71,6 +72,7 @@ class AuxBus:
                 # 3. Always echo the valid packet to the bus (MB behavior)
                 echo = b";" + cmd_pkt
                 all_responses.append(echo)
+                logger.debug(f"Echoing packet: {cmd_pkt.hex()}")
 
                 if self.cmd_callback:
                     self.cmd_callback(src_id, dst_id, cmd_id)
@@ -95,6 +97,7 @@ class AuxBus:
                         )
 
                         all_responses.append(resp_pkt)
+                        logger.debug(f"Response packet: {resp_pkt.hex()}")
                         nselog.log_protocol(logger, f"TX Response: {resp_pkt.hex()}")
 
             except Exception as e:

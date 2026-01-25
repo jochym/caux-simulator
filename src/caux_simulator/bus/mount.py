@@ -12,6 +12,8 @@ from .aux_bus import AuxBus
 from ..devices.motor import MotorController
 from ..devices.power import PowerModule
 from ..devices.wifi import WiFiModule
+from ..devices.gps import GPSReceiver
+from ..devices.light import LightController
 from ..devices.generic import GenericDevice
 
 try:
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 class NexStarMount:
     """The simulated mount, containing the AUX bus and all simulated hardware."""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], hc_enabled: bool = False):
         self.config = config
         self.sim_time = 0.0
 
@@ -40,24 +42,34 @@ class NexStarMount:
 
         self.bus = AuxBus(cmd_callback=log_to_deque)
 
-        # 1. Initialize Motors
-        self.azm_motor = MotorController(0x10, config)
-        self.alt_motor = MotorController(0x11, config)
+        # Evolution Mount Device Profile (Based on nsevo.log)
+        # Note: Devices that do NOT respond in the real log are OMITTED.
+
+        # 1. Motors - Version 7.19.5130 (0x141a = 5146, close enough or check if 5130 is 0x140a)
+        # nsevo.log shows 7.19.5130
+        self.azm_motor = MotorController(
+            0x10,
+            config,
+            version=(7, 19, 20, 10),  # 20*256 + 10 = 5130
+        )
+        self.alt_motor = MotorController(0x11, config, version=(7, 19, 20, 10))
         self.bus.register_device(self.azm_motor)
         self.bus.register_device(self.alt_motor)
 
-        # 2. Initialize Power
-        self.bat_module = PowerModule(0xB6, config)
-        self.chg_module = PowerModule(0xB7, config)
+        # 2. WiFi - Version 0.0.256
+        self.bus.register_device(WiFiModule(0xB5, config, version=(0, 0, 1, 0)))
+
+        # 3. Power (Battery/Charger) - Version 1.1.16418 (0x4022 = 16418)
+        self.bat_module = PowerModule(0xB6, config, version=(1, 1, 64, 34))
+        self.chg_module = PowerModule(0xB7, config, version=(1, 1, 64, 34))
         self.bus.register_device(self.bat_module)
         self.bus.register_device(self.chg_module)
 
-        # 3. Initialize WiFi
-        self.bus.register_device(WiFiModule(0xB9, config))
+        # 4. Lights - Version 1.1.16418
+        self.bus.register_device(LightController(0xBF, config, version=(1, 1, 64, 34)))
 
-        # 4. Initialize Core infrastructure
-        self.bus.register_device(GenericDevice(0x01, (2, 0, 0, 0)))  # MB
-        self.bus.register_device(GenericDevice(0xBF, (7, 11, 0, 0)))  # Lights
+        # 5. Optional devices (Broadcasting, but only those that exist)
+        # GPS (0xB0), Main Board (0x01), HCs (0x04, 0x0D, 0x0E) are SILENT in nsevo.log scan.
 
         # Sky Model Parameters
         imp = self.config.get("simulator", {}).get("imperfections", {})
@@ -149,11 +161,11 @@ class NexStarMount:
 
     @property
     def backlash_steps(self) -> int:
-        return self.azm_motor.backlash_steps
+        return 0  # To be re-implemented with integer logic
 
     @property
     def jitter_sigma(self) -> float:
-        return self.azm_motor.jitter_sigma
+        return 0.0  # To be re-implemented with integer logic
 
     def tick(self, dt: float) -> None:
         """Update simulation clock and propagate to all devices."""

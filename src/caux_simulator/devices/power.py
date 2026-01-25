@@ -13,9 +13,9 @@ logger = logging.getLogger(__name__)
 class PowerModule(AuxDevice):
     """Simulates Battery (0xB6) and Charger (0xB7) devices."""
 
-    def __init__(self, device_id: int, config: Dict[str, Any]):
+    def __init__(self, device_id: int, config: Dict[str, Any], version=(2, 0, 0, 0)):
         # Main board version 2.00
-        super().__init__(device_id, (2, 0, 0, 0))
+        super().__init__(device_id, version)
 
         self.voltage = 12345678  # microvolts
         self.current = 2468  # mA

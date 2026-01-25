@@ -48,6 +48,18 @@ def unpack_int3(d: bytes) -> float:
     return struct.unpack("!i", b"\x00" + d[:3])[0] / 2**24
 
 
+def pack_int3_raw(steps: int) -> bytes:
+    """Packs 24-bit steps into 3 bytes big-endian."""
+    return struct.pack("!i", steps & 0xFFFFFF)[1:]
+
+
+def unpack_int3_raw(d: bytes) -> int:
+    """Unpacks up to 3 bytes into a 24-bit integer."""
+    if len(d) < 3:
+        d = d.ljust(3, b"\x00")
+    return struct.unpack("!i", b"\x00" + d[:3])[0]
+
+
 def unpack_int2(d: bytes) -> int:
     """Unpacks 2 bytes into an integer."""
     if len(d) < 2:

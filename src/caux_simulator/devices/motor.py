@@ -4,10 +4,9 @@ Simulated Motor Controller (MC) for AZM and ALT axes.
 
 import random
 import logging
-from math import pi, sin, tan, radians
 from typing import Tuple, Dict, Any, Optional
 from .base import AuxDevice
-from ..bus.utils import pack_int3, unpack_int3, unpack_int2
+from ..bus.utils import pack_int3_raw, unpack_int3_raw, unpack_int2
 
 try:
     from .. import nse_logging as nselog
@@ -16,49 +15,55 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Slew rates mapping (index 0-9 to fraction/sec)
+# Steps per full revolution (24-bit resolution)
+STEPS_PER_REV = 16777216
+
+# Slew rates mapping (index 0-9 to steps/sec)
+# RATES 0-9 mapping from real mount (approximate steps per second)
 RATES = {
-    0: 0.0,
-    1: 0.008 / 360,
-    2: 0.017 / 360,
-    3: 0.033 / 360,
-    4: 0.067 / 360,
-    5: 0.133 / 360,
-    6: 0.5 / 360,
-    7: 1.0 / 360,
-    8: 2.0 / 360,
-    9: 4.0 / 360,
+    0: 0,
+    1: 373,  # 0.008 deg/sec
+    2: 792,  # 0.017 deg/sec
+    3: 1537,  # 0.033 deg/sec
+    4: 3122,  # 0.067 deg/sec
+    5: 6198,  # 0.133 deg/sec
+    6: 23301,  # 0.5 deg/sec
+    7: 46603,  # 1.0 deg/sec
+    8: 93206,  # 2.0 deg/sec
+    9: 186413,  # 4.0 deg/sec
 }
 
 
 class MotorController(AuxDevice):
-    """Simulates an AZM or ALT motor controller."""
+    """Simulates an AZM or ALT motor controller using integer step counts."""
 
     def __init__(
-        self, device_id: int, config: Dict[str, Any], initial_pos: float = 0.0
+        self,
+        device_id: int,
+        config: Dict[str, Any],
+        initial_pos: float = 0.0,
+        version: Tuple[int, int, int, int] = (7, 19, 20, 10),
     ):
-        # Version 7.11 (Standard for NexStar Evolution)
-        super().__init__(device_id, (7, 11, 19, 236))
+        super().__init__(device_id, version)
 
-        self.pos = initial_pos
-        self.trg_pos = initial_pos
-        self.rate = 0.0
-        self.guide_rate = 0.0
-        self.max_rate = 10000 / 360000.0  # Default 10 deg/s in MC units
+        # Positions stored as 24-bit integers [0, 16777216)
+        self.steps = int((initial_pos % 1.0) * STEPS_PER_REV)
+        self.trg_steps = self.steps
+
+        # Internal float accumulator for sub-step movements
+        self._step_accumulator = 0.0
+
+        self.rate_steps = 0.0  # steps per second
+        self.guide_rate_steps = 0.0  # steps per second
+
+        # Max rate (default 10 deg/s in MC units = approx 466033 steps/s)
+        self.max_rate_steps = 466033
+
         self.use_maxrate = False
         self.approach = 0
         self.slewing = False
         self.goto = False
         self.last_cmd = ""
-
-        # Backlash state
-        imp = config.get("simulator", {}).get("imperfections", {})
-        self.backlash_steps = imp.get("backlash_steps", 50)
-        self.last_dir = 0
-        self.backlash_rem = 0.0
-
-        # Jitter
-        self.jitter_sigma = imp.get("encoder_jitter_steps", 0) / 16777216.0
 
         # Register MC specific handlers
         self.handlers.update(
@@ -69,70 +74,186 @@ class MotorController(AuxDevice):
                 0x05: self.get_model,
                 0x06: self.set_pos_guiderate,
                 0x07: self.set_neg_guiderate,
+                0x0B: self.handle_level_start,
+                0x10: self.set_backlash,
+                0x11: self.set_backlash,
+                0x12: self.get_level_done,
                 0x13: self.get_slew_done,
+                0x17: self.handle_goto_slow,
+                0x18: self.get_seek_done,
+                0x19: self.handle_seek_index,
+                0x20: self.handle_set_maxrate,
+                0x21: self.get_maxrate,
+                0x22: self.handle_enable_maxrate,
+                0x23: self.get_maxrate_enabled,
                 0x24: self.handle_move_pos,
                 0x25: self.handle_move_neg,
+                0x38: self.handle_enable_cordwrap,
+                0x39: self.handle_disable_cordwrap,
+                0x3A: self.handle_set_cordwrap_pos,
+                0x3B: self.get_cordwrap_enabled,
+                0x3C: self.get_cordwrap_pos,
                 0x40: self.get_backlash,
                 0x41: self.get_backlash,
                 0x47: self.get_autoguide_rate,
                 0xFC: self.get_approach,
                 0xFD: self.set_approach,
+                0xFF: self.get_position,
             }
         )
+
+    @property
+    def pos(self) -> float:
+        """Returns position as fraction [0, 1] for external compatibility."""
+        return self.steps / STEPS_PER_REV
+
+    @pos.setter
+    def pos(self, val: float):
+        """Sets position from fraction [0, 1]."""
+        self.steps = int((val % 1.0) * STEPS_PER_REV)
+        self.trg_steps = self.steps
+        self._step_accumulator = 0.0
+
+    @property
+    def trg_pos(self) -> float:
+        return self.trg_steps / STEPS_PER_REV
+
+    @trg_pos.setter
+    def trg_pos(self, val: float):
+        self.trg_steps = int((val % 1.0) * STEPS_PER_REV)
+
+    @property
+    def rate(self) -> float:
+        """Rate in fraction/sec."""
+        return self.rate_steps / STEPS_PER_REV
+
+    @rate.setter
+    def rate(self, val: float):
+        self.rate_steps = val * STEPS_PER_REV
+
+    @property
+    def guide_rate(self) -> float:
+        return self.guide_rate_steps / STEPS_PER_REV
+
+    @guide_rate.setter
+    def guide_rate(self, val: float):
+        self.guide_rate_steps = val * STEPS_PER_REV
 
     def handle_command(
         self, sender_id: int, command_id: int, data: bytes
     ) -> Optional[bytes]:
         if command_id in self.handlers:
             return self.handlers[command_id](data, sender_id, self.device_id)
-        return None  # Signal "not handled" to bus
+        return None
 
     # --- MC Command Handlers ---
 
     def get_position(self, data: bytes, snd: int, rcv: int) -> bytes:
-        p = self.pos
-        if self.jitter_sigma > 0:
-            p += random.gauss(0, self.jitter_sigma)
-        return pack_int3(p)
+        return pack_int3_raw(self.steps)
 
     def set_position(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.pos = self.trg_pos = unpack_int3(data)
+        self.steps = self.trg_steps = unpack_int3_raw(data)
+        self._step_accumulator = 0.0
         return b""
 
     def get_model(self, data: bytes, snd: int, rcv: int) -> bytes:
         return bytes.fromhex("1687")  # Evolution
 
     def handle_goto_fast(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.trg_pos = unpack_int3(data)
+        self.trg_steps = unpack_int3_raw(data)
         self.slewing = self.goto = True
         self.last_cmd = "GOTO_FAST"
-        # Determine direction and set initial rate (simplified)
-        diff = self.trg_pos - self.pos
-        if rcv == 0x10:  # AZM wraps
-            if diff > 0.5:
-                diff -= 1.0
-            elif diff < -0.5:
-                diff += 1.0
-        self.rate = self.max_rate if diff > 0 else -self.max_rate
+        diff = self._get_diff()
+        # High speed 4 deg/sec = 186411 steps/sec (adjusted for 24-bit)
+        # 4.0 / 360.0 * 16777216 = 186411
+        self.rate_steps = 186411 if diff > 0 else -186411
+        self.log_cmd(snd, f"GOTO_FAST to steps={self.trg_steps}")
+        return b""
+
+    def handle_goto_slow(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.trg_steps = unpack_int3_raw(data)
+        self.slewing = self.goto = True
+        self.last_cmd = "GOTO_SLOW"
+        diff = self._get_diff()
+        # Slow rate 0.5 deg/sec = 23301 steps/sec
+        r = 23301
+        self.rate_steps = r if diff > 0 else -r
+        self.log_cmd(snd, f"GOTO_SLOW to steps={self.trg_steps}")
         return b""
 
     def handle_move_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.rate = RATES.get(data[0], 0.0)
-        self.slewing = abs(self.rate) > 0
+        self.rate_steps = RATES.get(data[0], 0)
+        self.slewing = self.rate_steps > 0
         self.goto = False
         return b""
 
     def handle_move_neg(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.rate = -RATES.get(data[0], 0.0)
-        self.slewing = abs(self.rate) > 0
+        self.rate_steps = -RATES.get(data[0], 0)
+        self.slewing = self.rate_steps < 0
         self.goto = False
         return b""
 
     def get_slew_done(self, data: bytes, snd: int, rcv: int) -> bytes:
         return b"\xff" if not self.slewing else b"\x00"
 
+    def handle_level_start(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.trg_steps = 0
+        self.slewing = self.goto = True
+        self.rate_steps = 23300  # 5 deg/sec
+        return b""
+
+    def get_level_done(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return b"\xff" if self.steps == 0 else b"\x00"
+
+    def handle_seek_index(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.trg_steps = 0
+        self.slewing = self.goto = True
+        self.rate_steps = 23300
+        return b""
+
+    def get_seek_done(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return b"\xff" if self.steps == 0 else b"\x00"
+
+    def handle_set_maxrate(self, data: bytes, snd: int, rcv: int) -> bytes:
+        # data is 2 bytes deg/sec * 3600? No, usually MC units.
+        # Simplified: assume input is deg/sec * 100
+        val = unpack_int2(data)
+        self.max_rate_steps = int(val * STEPS_PER_REV / 36000.0)
+        return b""
+
+    def get_maxrate(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return bytes.fromhex("0fa01194")
+
+    def handle_enable_maxrate(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.use_maxrate = bool(data[0])
+        return b""
+
+    def get_maxrate_enabled(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return b"\x01" if self.use_maxrate else b"\x00"
+
+    def handle_enable_cordwrap(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.cordwrap = True
+        return b""
+
+    def handle_disable_cordwrap(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.cordwrap = False
+        return b""
+
+    def handle_set_cordwrap_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
+        self.cordwrap_steps = unpack_int3_raw(data)
+        return b""
+
+    def get_cordwrap_enabled(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return b"\xff" if hasattr(self, "cordwrap") and self.cordwrap else b"\x00"
+
+    def get_cordwrap_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return pack_int3_raw(getattr(self, "cordwrap_steps", 0))
+
     def get_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
-        return bytes([int(self.backlash_steps) & 0xFF])
+        return bytes([0])  # Placeholder
+
+    def set_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return b""
 
     def get_autoguide_rate(self, data: bytes, snd: int, rcv: int) -> bytes:
         return bytes([240])
@@ -145,68 +266,71 @@ class MotorController(AuxDevice):
         return b""
 
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        val = unpack_int3(data) * (2**24)
-        self.guide_rate = (val) / (360.0 * 3600.0 * 1024.0)
+        # Fraction * 2^24. Simplified:
+        self.guide_rate_steps = unpack_int3_raw(data) / 60.0  # Placeholder logic
         return b""
 
     def set_neg_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        val = unpack_int3(data) * (2**24)
-        self.guide_rate = -(val) / (360.0 * 3600.0 * 1024.0)
+        self.guide_rate_steps = -unpack_int3_raw(data) / 60.0
         return b""
+
+    def _get_diff(self) -> int:
+        """Returns signed step difference to target, handling AZM wrap."""
+        diff = self.trg_steps - self.steps
+        if self.device_id == 0x10:  # AZM
+            if diff > STEPS_PER_REV // 2:
+                diff -= STEPS_PER_REV
+            elif diff < -STEPS_PER_REV // 2:
+                diff += STEPS_PER_REV
+        return diff
 
     # --- Physics Tick ---
 
     def tick(self, interval: float) -> None:
-        if not self.slewing and abs(self.guide_rate) < 1e-15:
+        if not self.slewing and abs(self.guide_rate_steps) < 1e-5:
             return
 
-        # GOTO deceleration logic
         if self.goto:
-            diff = self.trg_pos - self.pos
-            if self.device_id == 0x10:
-                if diff > 0.5:
-                    diff -= 1.0
-                elif diff < -0.5:
-                    diff += 1.0
+            diff = self._get_diff()
 
-            # Slow down near target
+            # Completion check (integer precision)
+            if abs(diff) <= 1:
+                self.steps = self.trg_steps
+                self.rate_steps = 0.0
+                self.slewing = self.goto = False
+                self._step_accumulator = 0.0
+                return
+
+            # Deceleration / Speed Adjustment
             s = 1 if diff > 0 else -1
-            r = abs(self.rate)
+            r = abs(self.rate_steps)
+
+            # If we would overshoot in next interval, set rate to reach exactly
             if r * interval >= abs(diff):
                 r = abs(diff) / interval
-            self.rate = s * r
 
-        move = (self.rate + self.guide_rate) * interval
+            # Min speed to avoid stalling
+            min_r = 100  # steps/sec
+            if r < min_r:
+                r = min_r
 
-        # Backlash Logic
-        if abs(move) > 1e-15:
-            move_dir = 1 if move > 0 else -1
-            if move_dir != self.last_dir:
-                self.backlash_rem = float(self.backlash_steps) / 16777216.0
-                self.last_dir = move_dir
+            self.rate_steps = s * r
 
-            if self.backlash_rem > 0:
-                consumed = min(abs(move), self.backlash_rem)
-                self.backlash_rem -= consumed
-                if abs(move) <= consumed:
-                    move = 0.0
-                else:
-                    move = (abs(move) - consumed) * (1 if move > 0 else -1)
+        # Accumulate fractional steps
+        move_float = (self.rate_steps + self.guide_rate_steps) * interval
+        self._step_accumulator += move_float
 
-        self.pos = self.pos + move
-        if self.device_id == 0x10:  # AZM Wraps
-            self.pos %= 1.0
+        # Apply whole steps
+        whole_steps = int(self._step_accumulator)
+        if whole_steps != 0:
+            self.steps = (self.steps + whole_steps) % STEPS_PER_REV
+            self._step_accumulator -= whole_steps
 
-        # GOTO completion check
+        # Final check if GOTO reached target during normal move
         if self.goto:
-            diff = self.trg_pos - self.pos
-            if self.device_id == 0x10:
-                if diff > 0.5:
-                    diff -= 1.0
-                elif diff < -0.5:
-                    diff += 1.0
-
-            if abs(diff) < 1e-7:
-                self.pos = self.trg_pos
-                self.rate = 0.0
+            diff = self._get_diff()
+            if abs(diff) <= 1:
+                self.steps = self.trg_steps
+                self.rate_steps = 0.0
                 self.slewing = self.goto = False
+                self._step_accumulator = 0.0

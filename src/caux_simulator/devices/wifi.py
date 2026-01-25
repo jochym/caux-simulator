@@ -1,5 +1,5 @@
 """
-Simulated WiFi Module (0xB9).
+Simulated WiFi Module (0xB5).
 """
 
 import logging
@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 class WiFiModule(AuxDevice):
     """Simulates the WiFly / Evolution WiFi bridge."""
 
-    def __init__(self, device_id: int, config: Dict[str, Any]):
+    def __init__(self, device_id: int, config: Dict[str, Any], version=(2, 40, 0, 0)):
         # WiFly version 2.40
-        super().__init__(device_id, (2, 40, 0, 0))
+        super().__init__(device_id, version)
 
         # Register Handshake handlers
         self.handlers.update(

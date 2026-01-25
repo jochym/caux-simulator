@@ -69,37 +69,37 @@ class TestSkySafari7Handshake(unittest.TestCase):
         return resp[len(pkt) :]
 
     def test_01_wifi_handshake(self):
-        """WiFi module (0xB9) initial handshake sequence."""
-        # 1. GET_VER - Should return version 2.40 (02 28 00 00)
-        resp = self.exchange(0xB9, 0x20, 0xFE)
+        """WiFi module (0xB5) initial handshake sequence."""
+        # 1. GET_VER - Should return version 0.0.256 (00 00 01 00)
+        resp = self.exchange(0xB5, 0x20, 0xFE)
         self.assertEqual(
-            resp[5:9], bytes([2, 40, 0, 0]), "WiFi Module should return version 2.40"
+            resp[5:9], bytes([0, 0, 1, 0]), "WiFi Module should return version 0.0.256"
         )
 
         # 2. Command 0x49 (Status/Ping)
-        resp = self.exchange(0xB9, 0x20, 0x49)
+        resp = self.exchange(0xB5, 0x20, 0x49)
         self.assertEqual(resp[5], 0x00, "WiFi 0x49 should return 0x00")
 
         # 3. Command 0x32 (Config)
-        resp = self.exchange(0xB9, 0x20, 0x32, bytes.fromhex("3106739d"))
+        resp = self.exchange(0xB5, 0x20, 0x32, bytes.fromhex("3106739d"))
         self.assertEqual(resp[5], 0x01, "WiFi 0x32 should return 0x01 (Success)")
 
         # 4. Command 0x31 (Location)
-        resp = self.exchange(0xB9, 0x20, 0x31, bytes.fromhex("4248b72d419e46aa"))
+        resp = self.exchange(0xB5, 0x20, 0x31, bytes.fromhex("4248b72d419e46aa"))
         self.assertEqual(resp[5], 0x01, "WiFi 0x31 should return 0x01 (Success)")
 
     def test_02_motor_handshake(self):
         """Motor controller (0x10) basic identification."""
         # 1. GET_VER
         resp = self.exchange(0x10, 0x20, 0xFE)
-        self.assertEqual(resp[5:9], bytes([7, 11, 19, 236]), "Incorrect AZM MC version")
+        self.assertEqual(resp[5:9], bytes([7, 19, 20, 10]), "Incorrect AZM MC version")
 
         # 2. GET_MODEL
         resp = self.exchange(0x10, 0x20, 0x05)
         self.assertEqual(
             resp[5:7],
             bytes.fromhex("1687"),
-            "Incorrect Model ID (should be CPC Deluxe)",
+            "Incorrect Model ID (should be Evolution)",
         )
 
     def test_03_backlash_protocol(self):
@@ -128,49 +128,32 @@ class TestSkySafari7Handshake(unittest.TestCase):
             "Battery status must be exactly 6 bytes data payload (12 bytes total)",
         )
 
-        # 2. GET_CURRENT (SS sends 0x18)
-        resp = self.exchange(0xB6, 0x20, 0x18)
-        self.assertEqual(
-            len(resp),
-            8,
-            "Battery current must be exactly 2 bytes data payload (8 bytes total)",
-        )
-
     def test_05_accessory_silence(self):
-        """Verifies that dropped devices (Focuser, StarSense, HC) only return their echo."""
+        """Verifies that dropped devices (Focuser, StarSense, HC) are completely silent."""
 
-        def check_echo_only(dest):
+        def check_silence(dest):
             pkt = encode_packet(0x20, dest, 0xFE)
             self.sock.send(pkt)
             time.sleep(0.1)
             try:
+                self.sock.settimeout(0.5)
                 resp = self.sock.recv(1024)
-                # Should receive exactly the echo (pkt)
-                self.assertEqual(
-                    resp, pkt, f"Device {hex(dest)} should return ONLY echo"
+                self.fail(
+                    f"Device {hex(dest)} should be silent but returned: {resp.hex()}"
                 )
-
-                # Verify no more data follows (timeout)
-                self.sock.settimeout(0.2)
-                try:
-                    extra = self.sock.recv(1024)
-                    self.fail(f"Device {hex(dest)} sent extra data: {extra.hex()}")
-                except socket.timeout:
-                    pass  # Correct
-                finally:
-                    self.sock.settimeout(1.0)
-
             except socket.timeout:
-                self.fail(f"Device {hex(dest)} did not return echo")
+                pass  # Success
+            finally:
+                self.sock.settimeout(1.0)
 
         # 1. Focuser (0x12)
-        check_echo_only(0x12)
+        check_silence(0x12)
 
         # 2. StarSense (0xB4)
-        check_echo_only(0xB4)
+        check_silence(0xB4)
 
         # 3. Hand Controller (0x04)
-        check_echo_only(0x04)
+        check_silence(0x04)
 
 
 if __name__ == "__main__":

@@ -25,19 +25,16 @@ To prevent SkySafari from trying to interact with accessories we don't simulate 
 ### **Current Simulated Device Support**
 | Device ID | Name | Status |
 |-----------|------|--------|
-| `0x01` | Main Board | Active |
-| `0x04/0x0D`| Hand Controller | Active |
-| `0x10` | AZM Motor | Fully Functional |
-| `0x11` | ALT Motor | Fully Functional |
-| `0xB0` | GPS | Active |
+| `0x10` | AZM Motor | Functional (GOTO stalling issue identified) |
+| `0x11` | ALT Motor | Functional (GOTO stalling issue identified) |
+| `0xB5` | WiFi Module | Handshake Only (Verified 0.0.256) |
 | `0xB6` | Battery | Functional (Status/Current) |
 | `0xB7` | Charger | Functional |
-| `0xB9` | WiFi Module | Handshake Only |
 | `0xBF` | Lights | Functional (Tray/Logo/WiFi) |
 
 ### **Known Issues / Limitations**
-- **18s Handshake Delay**: Caused by SkySafari timeout waiting for Focuser and StarSense. This is the authentic behavior for a mount without these accessories.
-- **WiFi Location Parsing**: Command `0x31` returns success but does not yet update the simulator's internal lat/lon (updates planned for refactoring).
+- **GOTO Completion**: GOTO commands sometimes fail to signal completion to SkySafari, causing an indefinite wait. Likely due to backlash compensation stalling the final movement.
+- **Handshake Accuracy**: Simulator now correctly mimics NexStar Evolution (no StarSense/Focuser by default), resolving SkySafari accessory detection issues.
 
 ## Maintenance & Debugging
 - Detailed protocol logging is available via `--log-categories 7`.

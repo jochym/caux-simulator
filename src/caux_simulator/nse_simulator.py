@@ -302,8 +302,19 @@ async def main_async():
     )
     parser.add_argument("-c", "--config", help="Custom configuration file path")
     parser.add_argument(
-        "-p", "--port", type=int, default=sim_cfg.get("aux_port", 2000), help="AUX port"
+        "--port",
+        "-p",
+        type=int,
+        default=2000,
+        help="AUX port to listen on (default: 2000)",
     )
+    parser.add_argument(
+        "--hc", action="store_true", help="Enable Hand Controller (NexStar+) simulation"
+    )
+    parser.add_argument(
+        "--perfect", action="store_true", help="Disable all mechanical imperfections"
+    )
+
     parser.add_argument(
         "-s",
         "--stellarium",
@@ -324,9 +335,6 @@ async def main_async():
         "--web-host",
         default=sim_cfg.get("web_host", "127.0.0.1"),
         help="Web console host (default: 127.0.0.1)",
-    )
-    parser.add_argument(
-        "--perfect", action="store_true", help="Disable all mechanical imperfections"
     )
     args = parser.parse_args()
 
@@ -405,7 +413,7 @@ async def main_async():
     obs.elevation = float(obs_cfg.get("elevation", 400))
     obs.pressure = 0
 
-    telescope = NexStarMount(config=config)
+    telescope = NexStarMount(config=config, hc_enabled=args.hc)
 
     background_tasks.append(asyncio.create_task(broadcast(sport=args.port)))
     background_tasks.append(asyncio.create_task(timer(0.1, telescope)))
