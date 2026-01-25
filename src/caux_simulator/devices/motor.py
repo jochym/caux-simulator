@@ -294,11 +294,15 @@ class MotorController(AuxDevice):
             diff = self._get_diff()
 
             # Completion check (integer precision)
-            if abs(diff) <= 1:
+            # If within 5 steps, snap to target and finish.
+            if abs(diff) <= 5:
                 self.steps = self.trg_steps
                 self.rate_steps = 0.0
                 self.slewing = self.goto = False
                 self._step_accumulator = 0.0
+                logger.debug(
+                    f"[0x{self.device_id:02x}] GOTO Finished at steps={self.steps}"
+                )
                 return
 
             # Deceleration / Speed Adjustment
@@ -309,12 +313,19 @@ class MotorController(AuxDevice):
             if r * interval >= abs(diff):
                 r = abs(diff) / interval
 
-            # Min speed to avoid stalling
-            min_r = 100  # steps/sec
+            # Min speed to avoid stalling.
+            # If we are in GOTO, we MUST move at least 500 steps/sec
+            # to ensure we actually reach the target in reasonable time.
+            # 500 steps/sec is still very slow (~0.01 deg/sec).
+            min_r = 500
             if r < min_r:
                 r = min_r
 
             self.rate_steps = s * r
+
+        else:
+            # If not in GOTO (manual slew), we don't apply min_r
+            pass
 
         # Accumulate fractional steps
         move_float = (self.rate_steps + self.guide_rate_steps) * interval
@@ -329,8 +340,11 @@ class MotorController(AuxDevice):
         # Final check if GOTO reached target during normal move
         if self.goto:
             diff = self._get_diff()
-            if abs(diff) <= 1:
+            if abs(diff) <= 5:
                 self.steps = self.trg_steps
                 self.rate_steps = 0.0
                 self.slewing = self.goto = False
                 self._step_accumulator = 0.0
+                logger.debug(
+                    f"[0x{self.device_id:02x}] GOTO Finished at steps={self.steps}"
+                )

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.3] - 2026-01-25
+### Changed
+- Web Console UI: Unified version display into title.
+- Web Console UI: Improved formatting for Mount Lights and Power status.
+- Web Console UI: Axis speed display changed to arcseconds per second ("/s").
+
+## [0.2.2] - 2026-01-25
+### Added
+- Comprehensive Mount Dashboard in Web Console (Battery, Lights, Coordinates).
+- Real-time synchronization of Charging state in Web Console.
+
+## [0.2.1] - 2026-01-25
+### Fixed
+- Switched East and West cardinal labels in the Web Console to match standard astronomical orientation.
+
 ## [0.2.0] - 2026-01-25
 ### Added
 - High-fidelity 24-bit integer motor engine.

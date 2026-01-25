@@ -131,6 +131,7 @@ class WebConsole:
                         "alt": sky_alt * 360.0,
                         "ra": str(ra),
                         "dec": str(dec),
+                        "lst": str(self.obs.sidereal_time()),
                         "v_azm": (
                             self.telescope.azm_rate + self.telescope.azm_guiderate
                         )
@@ -142,8 +143,21 @@ class WebConsole:
                         "slewing": self.telescope.slewing,
                         "guiding": self.telescope.guiding,
                         "voltage": self.telescope.bat_voltage / 1e6,
-                        "current": 0.2 + (1.0 if self.telescope.slewing else 0.0),
+                        "charging": self.telescope.chg_module.charging,
+                        "current": self.telescope.bat_module.current,
+                        "lights": {
+                            "tray": getattr(
+                                self.telescope.bus.devices[0xBF], "lt_tray", 0
+                            ),
+                            "logo": getattr(
+                                self.telescope.bus.devices[0xBF], "lt_logo", 0
+                            ),
+                            "wifi": getattr(
+                                self.telescope.bus.devices[0xBF], "lt_wifi", 0
+                            ),
+                        },
                         "timestamp": self.telescope.sim_time,
+                        "version": __version__,
                         "stars": stars,
                     }
                     message = json.dumps(state)
@@ -233,15 +247,21 @@ INDEX_HTML = """
 </head>
 <body>
     <div id="info">
-        <h2 style="margin-top:0; border-bottom: 1px solid #414868; padding-bottom: 5px; font-size: 1.5vw;">AUX Digital Twin</h2>
-        <div style="font-size: 0.8vw; color: #565f89; margin-bottom: 10px;">Simulator Version: {VERSION_PLACEHOLDER}</div>
+        <h2 style="margin-top:0; border-bottom: 1px solid #414868; padding-bottom: 5px; font-size: 1.5vw;">
+            AUX Digital Twin <span style="font-size: 0.8vw; color: #565f89; font-weight: normal;">v{VERSION_PLACEHOLDER}</span>
+        </h2>
         <div id="telemetry">
-            <div class="telemetry-row"><span>AZM:</span> <span id="azm" class="cyan">0.00</span>° (<span id="v_azm" class="blue">0.0</span>°/s)</div>
-            <div class="telemetry-row"><span>ALT:</span> <span id="alt" class="cyan">0.00</span>° (<span id="v_alt" class="blue">0.0</span>°/s)</div>
+            <div class="telemetry-row"><span>AZM:</span> <span id="azm" class="cyan">0.00</span>° (<span id="v_azm" class="blue">0.0</span>"/s)</div>
+            <div class="telemetry-row"><span>ALT:</span> <span id="alt" class="cyan">0.00</span>° (<span id="v_alt" class="blue">0.0</span>"/s)</div>
             <div class="telemetry-row"><span>RA:</span> <span id="ra" class="yellow">00:00:00</span></div>
             <div class="telemetry-row"><span>DEC:</span> <span id="dec" class="yellow">+00:00:00</span></div>
             <div class="telemetry-row"><span>Power:</span> <span id="pwr" class="magenta">0.0V</span></div>
+            <div class="telemetry-row"><span>LST:</span> <span id="lst" class="yellow">00:00:00</span></div>
             <div class="telemetry-row"><span>Status:</span> <span id="status" class="green">IDLE</span></div>
+            <div style="border-top: 1px solid #414868; margin-top: 10px; padding-top: 10px;">
+                <div style="font-size: 0.8vw; color: #565f89; margin-bottom: 5px;">Mount Lights</div>
+                <div id="lights" style="font-size: 0.9vw;" class="blue">-</div>
+            </div>
         </div>
         <div id="collision" class="warning" style="display:none; margin-top:10px">
             ⚠️ POTENTIAL COLLISION DETECTED
@@ -340,11 +360,12 @@ INDEX_HTML = """
         azDot.position.set(0, geo.indicator_size, geo.az_scale_radius);
         azmGroup.add(azDot);
 
-        // Cardinal points
+        // Cardinal points (Standard Top-down: North=+Z, South=-Z, East=-X, West=+X for right-handed coordinate system)
+        // Correcting based on user feedback that E/W were switched.
         const cardinalN = createLabel("N", "#f7768e", geo.label_font_size, geo.label_cardinal_scale); cardinalN.position.set(0, geo.base_height, 0.8); scene.add(cardinalN);
         const cardinalS = createLabel("S", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalS.position.set(0, geo.base_height, -0.8); scene.add(cardinalS);
-        const cardinalE = createLabel("E", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalE.position.set(0.9, geo.base_height, 0); scene.add(cardinalE);
-        const cardinalW = createLabel("W", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalW.position.set(-0.9, geo.base_height, 0); scene.add(cardinalW);
+        const cardinalE = createLabel("E", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalE.position.set(-0.9, geo.base_height, 0); scene.add(cardinalE);
+        const cardinalW = createLabel("W", "#7aa2f7", geo.label_font_size, geo.label_cardinal_scale); cardinalW.position.set(0.9, geo.base_height, 0); scene.add(cardinalW);
 
         // Fork Arm
         const arm = new THREE.Mesh(new THREE.BoxGeometry(geo.arm_thickness, geo.fork_height, 0.2), mountMaterial);
@@ -476,13 +497,23 @@ INDEX_HTML = """
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             document.getElementById('azm').innerText = data.azm.toFixed(2);
-            document.getElementById('v_azm').innerText = data.v_azm.toFixed(4);
+            document.getElementById('v_azm').innerText = (data.v_azm * 3600.0).toFixed(1);
             document.getElementById('alt').innerText = data.alt.toFixed(2);
-            document.getElementById('v_alt').innerText = data.v_alt.toFixed(4);
+            document.getElementById('v_alt').innerText = (data.v_alt * 3600.0).toFixed(1);
             document.getElementById('ra').innerText = data.ra;
             document.getElementById('dec').innerText = data.dec;
-            document.getElementById('pwr').innerText = data.voltage.toFixed(1) + 'V (' + data.current.toFixed(1) + 'A)';
-            document.getElementById('status').innerText = data.slewing ? 'SLEWING' : (data.guiding ? 'TRACKING' : 'IDLE');
+            document.getElementById('lst').innerText = data.lst;
+            
+            let pwrStr = data.voltage.toFixed(1) + 'V';
+            if (data.charging) pwrStr += ' [CHG]';
+            pwrStr += ' (' + (data.current/1000).toFixed(2) + 'A)';
+            document.getElementById('pwr').innerText = pwrStr;
+            
+            document.getElementById('status').innerText = (data.slewing ? 'SLEWING' : (data.guiding ? 'TRACKING' : 'IDLE'));
+
+            // Lights Display
+            const l = data.lights;
+            document.getElementById('lights').innerText = `Tray: ${l.tray} | Logo: ${l.logo} | WiFi: ${l.wifi}`;
 
             azmGroup.rotation.y = -THREE.MathUtils.degToRad(data.azm);
             altGroup.rotation.x = -THREE.MathUtils.degToRad(data.alt);

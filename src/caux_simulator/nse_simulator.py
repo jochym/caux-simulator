@@ -368,17 +368,6 @@ async def main_async():
         # No file logging, just stderr
         handlers.append(logging.StreamHandler())
 
-    logging.basicConfig(
-        level=log_level,
-        format=log_format,
-        handlers=handlers,
-    )
-
-    if log_file:
-        logger.info(f"Logging to file: {log_file}")
-        if args.log_stderr or args.log_file is None:
-            logger.info("Also logging to stderr")
-
     # Configure detailed logging categories
     log_categories = (
         args.log_categories
@@ -386,6 +375,12 @@ async def main_async():
         else log_cfg.get("categories", 0)
     )
     nselog.set_log_categories(log_categories)
+
+    logging.basicConfig(
+        level=logging.DEBUG if log_categories else log_level,
+        format=log_format,
+        handlers=handlers,
+    )
 
     if log_categories:
         logger.info(
@@ -428,7 +423,7 @@ async def main_async():
 
             global web_console_instance
             web_console_instance = WebConsole(
-                telescope, obs, host=args.web_host, port=args.web_port
+                telescope, obs, host="0.0.0.0", port=args.web_port
             )
             web_console_instance.run()
         except ImportError:
