@@ -9,8 +9,8 @@ def test_motor_controller():
     config = {"simulator": {"imperfections": {"backlash_steps": 100}}}
     azm = MotorController(0x10, config)
 
-    # Test version
-    assert azm.handle_command(0x20, 0xFE, b"") == bytes([7, 11, 19, 236])
+    # Test version (7.19.20.10)
+    assert azm.handle_command(0x20, 0xFE, b"") == bytes([7, 19, 20, 10])
 
     # Test position setting
     azm.handle_command(0x20, 0x04, b"\x80\x00\x00")  # Set to 0.5
