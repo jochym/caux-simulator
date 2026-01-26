@@ -5,6 +5,7 @@ Web-based 3D visualization console for the Celestron AUX Simulator.
 import asyncio
 import json
 import logging
+import math
 from typing import Set, Dict, Any, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -41,6 +42,7 @@ class WebConsole:
         self.host = host
         self.port = port
         self.server_task: Optional[asyncio.Task] = None
+        self._start_date = ephem.now()
 
         # Load geometry from telescope config
         global mount_geometry
@@ -62,7 +64,7 @@ class WebConsole:
                 "alt_scale_radius": 0.35,
                 "grid_size": 10,
                 "grid_divisions": 20,
-                "camera_distance": 4.0,
+                "camera_distance": 12.0,
                 "camera_fov": 20,
                 "camera_alt": 30,
                 "camera_az": 45,
@@ -76,23 +78,27 @@ class WebConsole:
         try:
             while True:
                 if clients:
-                    # Use a consistent simulation-based time for ephem to avoid drift
-                    # Anchor self.obs.date to the start of the simulation + sim_time
-                    if not hasattr(self, "_start_date"):
-                        self._start_date = ephem.now()
+                    # Update observer position from shared config (synced from SS7)
+                    lat = self.telescope.config.get("observer", {}).get("latitude")
+                    lon = self.telescope.config.get("observer", {}).get("longitude")
+                    if lat is not None:
+                        self.obs.lat = str(lat)
+                    if lon is not None:
+                        self.obs.lon = str(lon)
 
+                    # Sim-time based clock (Continuous & anchored)
                     self.obs.date = ephem.Date(
                         self._start_date + self.telescope.sim_time / 86400.0
                     )
-                    self.obs.epoch = self.telescope.config.get("observer", {}).get(
-                        "epoch", "2000"
-                    )
+                    self.obs.epoch = self.obs.date  # Use Current Epoch
 
                     sky_azm, sky_alt = self.telescope.get_sky_altaz()
-                    ra, dec = self.obs.radec_of(sky_azm * 2 * pi, sky_alt * 2 * pi)
+                    ra, dec = self.obs.radec_of(
+                        sky_azm * 2 * math.pi, sky_alt * 2 * math.pi
+                    )
 
                     # Get nearby stars for schematic sky view
-                    stars = []
+                    stars_data = []
                     fov_deg = 30.0  # 30 degree field of view
                     for name, body in [
                         ("Polaris", ephem.star("Polaris")),
@@ -115,18 +121,22 @@ class WebConsole:
                     ]:
                         try:
                             body.compute(self.obs)
+                            if name == "Altair":
+                                logger.info(
+                                    f"Altair Jnow (v{__version__}): RA={body.ra}, Dec={body.dec} (at {self.obs.date})"
+                                )
                             # Check if within FOV
                             dist = ephem.separation(
                                 (body.az, body.alt),
-                                (sky_azm * 2 * pi, sky_alt * 2 * pi),
+                                (sky_azm * 2 * math.pi, sky_alt * 2 * math.pi),
                             )
-                            if dist < radians(fov_deg):
+                            if dist < math.radians(fov_deg):
                                 # Calculate relative X, Y in FOV [-1, 1]
-                                dx = (degrees(body.az) - sky_azm * 360.0) * cos(
-                                    body.alt
-                                )
-                                dy = degrees(body.alt) - sky_alt * 360.0
-                                stars.append(
+                                dx = (
+                                    math.degrees(body.az) - sky_azm * 360.0
+                                ) * math.cos(body.alt)
+                                dy = math.degrees(body.alt) - sky_alt * 360.0
+                                stars_data.append(
                                     {
                                         "name": name,
                                         "x": dx / (fov_deg / 2),
@@ -137,26 +147,30 @@ class WebConsole:
                         except Exception:
                             continue
 
+                    def format_hms(rad, is_ra=True):
+                        # Simple robust hms/dms formatting
+                        d = math.degrees(rad)
+                        sign = "-" if d < 0 else "+"
+                        d = abs(d)
+                        if is_ra:
+                            d = d / 15.0
+                            sign = ""  # RA is always positive
+
+                        hh = int(d)
+                        mm = int((d - hh) * 60)
+                        ss = (d - hh - mm / 60.0) * 3600.0
+                        return f"{sign}{hh:02}:{mm:02}:{ss:04.1f}"
+
                     state = {
                         "azm": sky_azm * 360.0,
                         "alt": sky_alt * 360.0,
-                        "ra": f"{ra.h}:{ra.m:02}:{ra.s:04.1f}"
-                        if hasattr(ra, "h")
-                        else str(ra),
-                        "dec": f"{dec.deg}:{dec.m:02}:{dec.s:04.1f}"
-                        if hasattr(dec, "deg")
-                        else str(dec),
-                        "lst": f"{self.obs.sidereal_time().h}:{self.obs.sidereal_time().m:02}:{self.obs.sidereal_time().s:04.1f}"
-                        if hasattr(self.obs.sidereal_time(), "h")
-                        else str(self.obs.sidereal_time()),
-                        "lat": f"{self.obs.lat.deg}:{self.obs.lat.m:02}:{self.obs.lat.s:02.0f}",
-                        "lon": f"{self.obs.lon.deg}:{self.obs.lon.m:02}:{self.obs.lon.s:02.0f}",
+                        "ra": format_hms(ra, is_ra=True),
+                        "dec": format_hms(dec, is_ra=False),
+                        "lst": format_hms(float(self.obs.sidereal_time()), is_ra=True),
+                        "lat": f"{math.degrees(self.obs.lat):.2f}",
+                        "lon": f"{math.degrees(self.obs.lon):.2f}",
                         "v_azm": (
                             self.telescope.azm_rate + self.telescope.azm_guiderate
-                        )
-                        * 360.0,
-                        "v_alt": (
-                            self.telescope.alt_rate + self.telescope.alt_guiderate
                         )
                         * 360.0,
                         "v_alt": (
@@ -181,7 +195,7 @@ class WebConsole:
                         },
                         "timestamp": self.telescope.sim_time,
                         "version": __version__,
-                        "stars": stars,
+                        "stars": stars_data,
                     }
                     message = json.dumps(state)
                     disconnected = set()
@@ -251,11 +265,11 @@ INDEX_HTML = """
     <title>Celestron AUX 3D Console v{VERSION_PLACEHOLDER}</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1b26; color: #7aa2f7; font-family: monospace; }
-        #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 22vw; min-width: 280px; font-size: 1.1vw; }
+        #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 20vw; min-width: 320px; font-size: 1.3vw; }
         #telemetry span { font-variant-numeric: tabular-nums; }
-        .telemetry-label { color: #565f89; width: 50px; display: inline-block; }
-        .telemetry-value { text-align: right; min-width: 110px; display: inline-block; }
-        .telemetry-rate { color: #7aa2f7; font-size: 0.9vw; width: 80px; text-align: right; display: inline-block; }
+        .telemetry-label { color: #565f89; width: 50px; display: inline-block; font-size: 1.3vw; }
+        .telemetry-value { text-align: right; min-width: 130px; display: inline-block; font-size: 1.3vw; }
+        .telemetry-rate { color: #7aa2f7; font-size: 1.3vw; width: 100px; text-align: right; display: inline-block; }
         #sky-view { position: absolute; top: 1vh; right: 1vw; background: rgba(0, 0, 0, 0.8); border: 1px solid #414868; width: 30vh; height: 30vh; border-radius: 50%; overflow: hidden; }
         #zoom-view { position: absolute; bottom: 1vh; right: 1vw; background: rgba(0, 0, 0, 0.9); border: 2px solid #f7768e; width: 30vh; height: 30vh; border-radius: 4px; overflow: hidden; }
         #controls { position: absolute; bottom: 1vh; left: 1vw; color: #565f89; font-size: 1vw; }
@@ -288,7 +302,7 @@ INDEX_HTML = """
             <div class="telemetry-row"><span class="telemetry-label">Status:</span> <span id="status" class="green telemetry-value">IDLE</span></div>
             <div style="border-top: 1px solid #414868; margin-top: 10px; padding-top: 10px;">
                 <div style="font-size: 0.8vw; color: #565f89; margin-bottom: 5px;">Mount Lights</div>
-                <div id="lights" style="font-size: 0.9vw; font-variant-numeric: tabular-nums;" class="blue">-</div>
+                <div id="lights" style="font-size: 1.3vw; font-variant-numeric: tabular-nums;" class="blue">-</div>
             </div>
         </div>
         <div id="collision" class="warning" style="display:none; margin-top:10px">
@@ -309,7 +323,9 @@ INDEX_HTML = """
         
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(geo.camera_fov, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 5); // Start further back
+        
+        // Use the geo value if it exists, otherwise fallback
+        const cam_dist = geo.camera_distance || 15.0;
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
@@ -452,9 +468,9 @@ INDEX_HTML = """
 
         const cam_alt = THREE.MathUtils.degToRad(geo.camera_alt);
         const cam_az = THREE.MathUtils.degToRad(geo.camera_az);
-        camera.position.x = geo.camera_distance * Math.cos(cam_alt) * Math.sin(cam_az);
-        camera.position.y = geo.camera_distance * Math.sin(cam_alt);
-        camera.position.z = geo.camera_distance * Math.cos(cam_alt) * Math.cos(cam_az);
+        camera.position.x = cam_dist * Math.cos(cam_alt) * Math.sin(cam_az);
+        camera.position.y = cam_dist * Math.sin(cam_alt);
+        camera.position.z = cam_dist * Math.cos(cam_alt) * Math.cos(cam_az);
         controls.target.set(0, 0.5, 0);
         controls.update();
 
@@ -492,8 +508,12 @@ INDEX_HTML = """
 
             if (isZoom) {
                 ctx.setLineDash([5, 5]);
-                ctx.beginPath(); ctx.arc(center, center, center * (10/60), 0, Math.PI*2); ctx.stroke();
-                ctx.beginPath(); ctx.arc(center, center, center * (30/60), 0, Math.PI*2); ctx.stroke();
+                // Three circles: 10, 20, 30 arcmin (1/6, 1/3, 1/2 deg)
+                // center * (radius_deg / fov_radius_deg)
+                // fov_radius_deg = 0.5
+                ctx.beginPath(); ctx.arc(center, center, center * (1/3), 0, Math.PI*2); ctx.stroke(); // 10'
+                ctx.beginPath(); ctx.arc(center, center, center * (2/3), 0, Math.PI*2); ctx.stroke(); // 20'
+                ctx.beginPath(); ctx.arc(center, center, center, 0, Math.PI*2); ctx.stroke(); // 30'
                 ctx.setLineDash([]);
             }
 

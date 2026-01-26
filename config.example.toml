@@ -1,4 +1,4 @@
-# Example configuration with comprehensive logging enabled
+# NexStar AUX Simulator Configuration
 # Copy this to config.toml and modify as needed
 
 [observer]
@@ -6,10 +6,45 @@ name = "My Observatory"
 latitude = 50.1822
 longitude = 19.7925
 elevation = 400
+# Epoch: "2000" or "current" (default: current)
+epoch = "current"
 
 [simulator]
 aux_port = 2000
+web_port = 8080
 stellarium_port = 10001
+
+# Geometrical imperfections (Phase 2)
+[simulator.imperfections]
+cone_error_arcmin = 0.0
+non_perpendicularity_arcmin = 0.0
+periodic_error_arcsec = 0.0
+periodic_error_period_sec = 480.0
+refraction_enabled = false
+clock_drift = 0.0
+
+# 3D Web Console Geometry
+[simulator.geometry]
+base_height = 0.18
+fork_height = 0.42
+fork_width = 0.22
+arm_thickness = 0.08
+ota_radius = 0.116
+ota_length = 0.43
+camera_length = 0.12
+label_font_size = 48
+label_cardinal_scale = 0.3
+label_scale_scale = 0.24
+indicator_size = 0.02
+az_scale_radius = 0.45
+alt_scale_radius = 0.35
+grid_size = 10
+grid_divisions = 20
+# distance from model in units (default: 15.0)
+camera_distance = 15.0
+camera_fov = 20
+camera_alt = 30
+camera_az = 45
 
 [logging]
 level = "DEBUG"
@@ -26,10 +61,4 @@ format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 # Combine values to enable multiple categories:
 #   categories = 7   # CONNECTION + PROTOCOL + COMMAND (1+2+4)
 #   categories = 31  # All categories (1+2+4+8+16)
-#
-# For debugging SkySafari connection issues, use:
-categories = 7  # CONNECTION + PROTOCOL + COMMAND
-
-# Note: Command-line options override these settings
-# Example: python -m src.nse_simulator -d --log-file debug.log --log-categories 31
-
+categories = 31

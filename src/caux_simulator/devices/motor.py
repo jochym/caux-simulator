@@ -159,18 +159,20 @@ class MotorController(AuxDevice):
         return bytes.fromhex("1687")  # Evolution
 
     def handle_goto_fast(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.trg_steps = unpack_int3_raw(data)
+        new_trg = unpack_int3_raw(data)
+        # Reset if new target is received, even if busy
+        self.trg_steps = new_trg
         self.slewing = self.goto = True
         self.last_cmd = "GOTO_FAST"
         diff = self._get_diff()
-        # High speed 4 deg/sec = 186411 steps/sec (adjusted for 24-bit)
-        # 4.0 / 360.0 * 16777216 = 186411
+        # High speed 4 deg/sec = 186411 steps/sec
         self.rate_steps = 186411 if diff > 0 else -186411
         self.log_cmd(snd, f"GOTO_FAST to steps={self.trg_steps}")
         return b""
 
     def handle_goto_slow(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.trg_steps = unpack_int3_raw(data)
+        new_trg = unpack_int3_raw(data)
+        self.trg_steps = new_trg
         self.slewing = self.goto = True
         self.last_cmd = "GOTO_SLOW"
         diff = self._get_diff()
@@ -265,15 +267,16 @@ class MotorController(AuxDevice):
         return b""
 
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        # Data is fraction of revolution * 2^24.
-        # This matches our STEPS_PER_REV.
-        # BUT real MC uses different scaling for guide rates.
-        # Reverting to /60.0 placeholder as requested.
-        self.guide_rate_steps = unpack_int3_raw(data) / 60.0
+        # High-fidelity tracking scaling.
+        # Based on INDI-CelestronAUX driver analysis:
+        # value = arcsec_per_sec * STEPS_PER_ARCSEC * GAIN_STEPS (80)
+        # Therefore: steps_per_sec = value / 80.0
+
+        self.guide_rate_steps = unpack_int3_raw(data) / 80.0
         return b""
 
     def set_neg_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.guide_rate_steps = -unpack_int3_raw(data) / 60.0
+        self.guide_rate_steps = -unpack_int3_raw(data) / 80.0
         return b""
 
     def _get_diff(self) -> int:

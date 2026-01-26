@@ -190,16 +190,5 @@ class NexStarMount:
         sky_alt = self.alt_motor.pos
         sky_azm = self.azm_motor.pos
 
-        # 1. Cone error
-        sky_alt += self.cone_error
-
-        # 2. Non-perpendicularity
-        sky_azm += (
-            self.non_perp * tan(radians(max(-80.0, min(80.0, sky_alt * 360.0)))) / 360.0
-        )
-
-        # 3. Periodic Error
-        if self.pe_period > 0:
-            sky_azm += self.pe_amplitude * sin(2 * pi * self.sim_time / self.pe_period)
-
+        # Default: Pure model (no imperfections)
         return sky_azm % 1.0, sky_alt

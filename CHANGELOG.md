@@ -1,3 +1,34 @@
+## [0.2.16] - 2026-01-26
+### Added
+- Expanded `config.example.toml` with all adjustable geometry, imperfection, and observer settings.
+- Restored default camera zoom to 15.0.
+
+## [0.2.15] - 2026-01-26
+### Fixed
+- Web Console UI: Standardized all dashboard fonts to 1.3vw (increased readability).
+- Web Console UI: Narrowed dashboard and optimized whitespace.
+- Web Console UI: Corrected 3D camera distance (moved significantly back) to reduce model size.
+- Web Console UI: Added third concentric circle (20 arcmin) to 1-degree FOV view.
+- Stability: Hardened Star coordinate computation to prevent broadcast task crashes.
+
+## [0.2.9] - 2026-01-26
+### Fixed
+- Stability: Hardened Web Console broadcast to prevent "Zero display" crashes.
+- Tracking: Corrected sub-step accumulation logic to resolve subtle tracking drift.
+- Time: Anchored virtual sky to simulation start date for perfect clock sync.
+- Epoch: Switched to current epoch (real-time) to match SkySafari 7 default behavior.
+- UI: Unified RA/Dec precision and restored dashboard font visibility.
+- UI: Backed out default 3D camera for a better field of view.
+
+## [0.2.8] - 2026-01-26
+### Fixed
+- Motor Engine: Refactored integer step application to eliminate sub-step rounding accumulation during tracking.
+- Web Console: Anchored simulation time to a fixed start date to prevent time-drift in sky model.
+- Web Console UI: Unified precision for RA/Dec/LST (1 decimal place for seconds).
+- Web Console UI: Added dynamic Geographic Location (GEO) display synced from SkySafari.
+- Web Console UI: Increased velocity precision to 4 decimal places ("/s").
+- Web Console UI: Added more bright stars (Regulus, Aldebaran, Fomalhaut) and adjusted default camera zoom.
+
 ## [0.2.7] - 2026-01-26
 ### Fixed
 - Web Console UI: Restored state broadcast by adding robust attribute checks for RA/Dec/LST objects.
@@ -18,6 +49,10 @@
 - Improved Web Console telemetry alignment using tabular fonts and fixed-width labels.
 
 ## [0.2.4] - 2026-01-25
+### Added
+- Dynamic observer location sync: Simulator now recognizes and applies geographic coordinates sent by SkySafari 7 (WiFi Command 0x31).
+
+## [0.2.3] - 2026-01-25
 ### Changed
 - Web Console UI: Unified version display into title.
 - Web Console UI: Improved formatting for Mount Lights and Power status.
