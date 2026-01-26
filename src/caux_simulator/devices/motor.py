@@ -2,8 +2,8 @@
 Simulated Motor Controller (MC) for AZM and ALT axes.
 """
 
-import random
 import logging
+from decimal import Decimal, getcontext
 from typing import Tuple, Dict, Any, Optional
 from .base import AuxDevice
 from ..bus.utils import pack_int3_raw, unpack_int3_raw, unpack_int2
@@ -15,11 +15,13 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Set precision for decimal math
+getcontext().prec = 28
+
 # Steps per full revolution (24-bit resolution)
 STEPS_PER_REV = 16777216
 
 # Slew rates mapping (index 0-9 to steps/sec)
-# RATES 0-9 mapping from real mount (approximate steps per second)
 RATES = {
     0: 0,
     1: 373,  # 0.008 deg/sec
@@ -50,19 +52,20 @@ class MotorController(AuxDevice):
         self.steps = int((initial_pos % 1.0) * STEPS_PER_REV)
         self.trg_steps = self.steps
 
-        # Internal float accumulator for sub-step movements
-        self._step_accumulator = 0.0
+        # Internal high-precision accumulator for sub-step movements
+        self._step_accumulator = Decimal(0)
 
-        self.rate_steps = 0.0  # steps per second
-        self.guide_rate_steps = 0.0  # steps per second
+        self.rate_steps = Decimal(0)  # steps per second
+        self.guide_rate_steps = Decimal(0)  # steps per second
 
         # Max rate (default 10 deg/s in MC units = approx 466033 steps/s)
-        self.max_rate_steps = 466033
+        self.max_rate_steps = Decimal(466033)
         self.use_maxrate = False
         self.approach = 0
         self.slewing = False
         self.goto = False
         self.last_cmd = ""
+        self.goto_start_time = 0.0
 
         # Register MC specific handlers
         self.handlers.update(
@@ -104,18 +107,18 @@ class MotorController(AuxDevice):
     @property
     def pos(self) -> float:
         """Returns position as fraction [0, 1] for external compatibility."""
-        return self.steps / STEPS_PER_REV
+        return float(self.steps) / STEPS_PER_REV
 
     @pos.setter
     def pos(self, val: float):
         """Sets position from fraction [0, 1]."""
         self.steps = int((val % 1.0) * STEPS_PER_REV)
         self.trg_steps = self.steps
-        self._step_accumulator = 0.0
+        self._step_accumulator = Decimal(0)
 
     @property
     def trg_pos(self) -> float:
-        return self.trg_steps / STEPS_PER_REV
+        return float(self.trg_steps) / STEPS_PER_REV
 
     @trg_pos.setter
     def trg_pos(self, val: float):
@@ -124,19 +127,19 @@ class MotorController(AuxDevice):
     @property
     def rate(self) -> float:
         """Rate in fraction/sec."""
-        return self.rate_steps / STEPS_PER_REV
+        return float(self.rate_steps) / STEPS_PER_REV
 
     @rate.setter
     def rate(self, val: float):
-        self.rate_steps = val * STEPS_PER_REV
+        self.rate_steps = Decimal(val) * STEPS_PER_REV
 
     @property
     def guide_rate(self) -> float:
-        return self.guide_rate_steps / STEPS_PER_REV
+        return float(self.guide_rate_steps) / STEPS_PER_REV
 
     @guide_rate.setter
     def guide_rate(self, val: float):
-        self.guide_rate_steps = val * STEPS_PER_REV
+        self.guide_rate_steps = Decimal(val) * STEPS_PER_REV
 
     def handle_command(
         self, sender_id: int, command_id: int, data: bytes
@@ -152,7 +155,7 @@ class MotorController(AuxDevice):
 
     def set_position(self, data: bytes, snd: int, rcv: int) -> bytes:
         self.steps = self.trg_steps = unpack_int3_raw(data)
-        self._step_accumulator = 0.0
+        self._step_accumulator = Decimal(0)
         return b""
 
     def get_model(self, data: bytes, snd: int, rcv: int) -> bytes:
@@ -160,36 +163,52 @@ class MotorController(AuxDevice):
 
     def handle_goto_fast(self, data: bytes, snd: int, rcv: int) -> bytes:
         new_trg = unpack_int3_raw(data)
+
+        # Log transition if we were already in GOTO mode
+        if self.goto and self.slewing:
+            logger.debug(
+                f"[0x{self.device_id:02x}] Transition: GOTO Re-asserted (Steps {self.steps} -> {new_trg})"
+            )
+
         # Reset if new target is received, even if busy
         self.trg_steps = new_trg
         self.slewing = self.goto = True
         self.last_cmd = "GOTO_FAST"
         diff = self._get_diff()
+
         # High speed 4 deg/sec = 186411 steps/sec
-        self.rate_steps = 186411 if diff > 0 else -186411
+        self.rate_steps = Decimal(186411) if diff > 0 else Decimal(-186411)
         self.log_cmd(snd, f"GOTO_FAST to steps={self.trg_steps}")
         return b""
 
     def handle_goto_slow(self, data: bytes, snd: int, rcv: int) -> bytes:
         new_trg = unpack_int3_raw(data)
+
+        # Log transition from Fast to Slow
+        if self.goto and self.slewing:
+            logger.debug(
+                f"[0x{self.device_id:02x}] Transition: FAST -> SLOW (Steps {self.steps} -> {new_trg})"
+            )
+
         self.trg_steps = new_trg
         self.slewing = self.goto = True
         self.last_cmd = "GOTO_SLOW"
         diff = self._get_diff()
+
         # Slow rate 0.5 deg/sec = 23301 steps/sec
-        r = 23301
+        r = Decimal(23301)
         self.rate_steps = r if diff > 0 else -r
         self.log_cmd(snd, f"GOTO_SLOW to steps={self.trg_steps}")
         return b""
 
     def handle_move_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.rate_steps = RATES.get(data[0], 0)
+        self.rate_steps = Decimal(RATES.get(data[0], 0))
         self.slewing = self.rate_steps > 0
         self.goto = False
         return b""
 
     def handle_move_neg(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.rate_steps = -RATES.get(data[0], 0)
+        self.rate_steps = Decimal(-RATES.get(data[0], 0))
         self.slewing = self.rate_steps < 0
         self.goto = False
         return b""
@@ -200,7 +219,7 @@ class MotorController(AuxDevice):
     def handle_level_start(self, data: bytes, snd: int, rcv: int) -> bytes:
         self.trg_steps = 0
         self.slewing = self.goto = True
-        self.rate_steps = 23300  # 5 deg/sec
+        self.rate_steps = Decimal(23300)  # 5 deg/sec
         return b""
 
     def get_level_done(self, data: bytes, snd: int, rcv: int) -> bytes:
@@ -209,17 +228,15 @@ class MotorController(AuxDevice):
     def handle_seek_index(self, data: bytes, snd: int, rcv: int) -> bytes:
         self.trg_steps = 0
         self.slewing = self.goto = True
-        self.rate_steps = 23300
+        self.rate_steps = Decimal(23300)
         return b""
 
     def get_seek_done(self, data: bytes, snd: int, rcv: int) -> bytes:
         return b"\xff" if self.steps == 0 else b"\x00"
 
     def handle_set_maxrate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        # data is 2 bytes deg/sec * 3600? No, usually MC units.
-        # Simplified: assume input is deg/sec * 100
         val = unpack_int2(data)
-        self.max_rate_steps = int(val * STEPS_PER_REV / 36000.0)
+        self.max_rate_steps = Decimal(val * STEPS_PER_REV) / Decimal(36000.0)
         return b""
 
     def get_maxrate(self, data: bytes, snd: int, rcv: int) -> bytes:
@@ -251,7 +268,7 @@ class MotorController(AuxDevice):
         return pack_int3_raw(getattr(self, "cordwrap_steps", 0))
 
     def get_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
-        return bytes([0])  # Placeholder
+        return bytes([0])
 
     def set_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
         return b""
@@ -267,16 +284,12 @@ class MotorController(AuxDevice):
         return b""
 
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        # High-fidelity tracking scaling.
-        # Based on INDI-CelestronAUX driver analysis:
-        # value = arcsec_per_sec * STEPS_PER_ARCSEC * GAIN_STEPS (80)
-        # Therefore: steps_per_sec = value / 80.0
-
-        self.guide_rate_steps = unpack_int3_raw(data) / 80.0
+        # Scaling based on INDI driver analysis: value / 80.0
+        self.guide_rate_steps = Decimal(unpack_int3_raw(data)) / Decimal(80.0)
         return b""
 
     def set_neg_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.guide_rate_steps = -unpack_int3_raw(data) / 80.0
+        self.guide_rate_steps = Decimal(-unpack_int3_raw(data)) / Decimal(80.0)
         return b""
 
     def _get_diff(self) -> int:
@@ -292,19 +305,20 @@ class MotorController(AuxDevice):
     # --- Physics Tick ---
 
     def tick(self, interval: float) -> None:
-        if not self.slewing and abs(self.guide_rate_steps) < 1e-5:
+        interval_dec = Decimal(str(interval))
+
+        if not self.slewing and abs(self.guide_rate_steps) < Decimal("1e-10"):
             return
 
         if self.goto:
             diff = self._get_diff()
 
             # Completion check (integer precision)
-            # If within 5 steps, snap to target and finish.
             if abs(diff) <= 5:
                 self.steps = self.trg_steps
-                self.rate_steps = 0.0
+                self.rate_steps = Decimal(0)
                 self.slewing = self.goto = False
-                self._step_accumulator = 0.0
+                self._step_accumulator = Decimal(0)
                 logger.debug(
                     f"[0x{self.device_id:02x}] GOTO Finished at steps={self.steps}"
                 )
@@ -314,32 +328,46 @@ class MotorController(AuxDevice):
             s = 1 if diff > 0 else -1
             r = abs(self.rate_steps)
 
-            # If we would overshoot in next interval, set rate to reach exactly
-            if r * interval >= abs(diff):
-                r = abs(diff) / interval
+            if r * interval_dec >= abs(diff):
+                r = Decimal(abs(diff)) / interval_dec
 
-            # Min speed to avoid stalling.
-            # If we are in GOTO, we MUST move at least 500 steps/sec
-            # to ensure we actually reach the target in reasonable time.
-            # 500 steps/sec is still very slow (~0.01 deg/sec).
-            min_r = 500
+            # Min speed to avoid stalling
+            # Increase min speed to ensure completion logic triggers
+            min_r = Decimal(500)
             if r < min_r:
                 r = min_r
 
+            # Anti-stall timeout check
+            import time
+
+            if not hasattr(self, "_goto_stuck_start"):
+                self._goto_stuck_start = time.time()
+            elif time.time() - self._goto_stuck_start > 5.0 and abs(diff) < 50:
+                # Force finish if stuck near target for > 5s
+                logger.warning(
+                    f"[0x{self.device_id:02x}] GOTO Anti-Stall Triggered (Steps {self.steps} -> {self.trg_steps})"
+                )
+                self.steps = self.trg_steps
+                self.rate_steps = Decimal(0)
+                self.slewing = self.goto = False
+                self._step_accumulator = Decimal(0)
+                if hasattr(self, "_goto_stuck_start"):
+                    del self._goto_stuck_start
+                return
+
             self.rate_steps = s * r
-
         else:
-            # If not in GOTO (manual slew), we don't apply min_r
-            pass
+            if hasattr(self, "_goto_stuck_start"):
+                del self._goto_stuck_start
 
-        # Accumulate whole steps from the rate
-        move_float = (self.rate_steps + self.guide_rate_steps) * interval
-        self._step_accumulator += move_float
+        # Accumulate whole steps from the rate (High Precision)
+        move_dec = (self.rate_steps + self.guide_rate_steps) * interval_dec
+        self._step_accumulator += move_dec
 
-        # Immediate integer step application to avoid drift
+        # Immediate integer step application
         whole_steps = int(self._step_accumulator)
         if whole_steps != 0:
-            self._step_accumulator -= whole_steps
+            self._step_accumulator -= Decimal(whole_steps)
             new_steps = self.steps + whole_steps
             if self.device_id == 0x10:  # AZM Wraps
                 self.steps = new_steps % STEPS_PER_REV
@@ -351,9 +379,9 @@ class MotorController(AuxDevice):
             diff = self._get_diff()
             if abs(diff) <= 5:
                 self.steps = self.trg_steps
-                self.rate_steps = 0.0
+                self.rate_steps = Decimal(0)
                 self.slewing = self.goto = False
-                self._step_accumulator = 0.0
+                self._step_accumulator = Decimal(0)
                 logger.debug(
                     f"[0x{self.device_id:02x}] GOTO Finished at steps={self.steps}"
                 )

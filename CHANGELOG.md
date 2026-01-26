@@ -1,3 +1,17 @@
+# Changelog
+
+## [0.2.18] - 2026-01-26
+### Fixed
+- Motor Engine: Fully refactored movement accumulator using `decimal.Decimal` (28-digit precision) to eliminate floating-point rounding drift.
+- GOTO: Improved state reset logic to handle SkySafari command re-transmission without stalling.
+- Tracking: Standardized high-fidelity tracking scaling using INDI driver reference factor (value/80.0).
+
+## [0.2.17] - 2026-01-26
+### Fixed
+- Config: Moved all default settings into src/caux_simulator/config.default.toml.
+- Config: Standardized the config.toml deep-merge logic.
+- UI: Set default camera_distance to 15.0 and default web_host to 0.0.0.0.
+
 ## [0.2.16] - 2026-01-26
 ### Added
 - Expanded `config.example.toml` with all adjustable geometry, imperfection, and observer settings.
@@ -5,83 +19,81 @@
 
 ## [0.2.15] - 2026-01-26
 ### Fixed
-- Web Console UI: Standardized all dashboard fonts to 1.3vw (increased readability).
-- Web Console UI: Narrowed dashboard and optimized whitespace.
-- Web Console UI: Corrected 3D camera distance (moved significantly back) to reduce model size.
-- Web Console UI: Added third concentric circle (20 arcmin) to 1-degree FOV view.
-- Stability: Hardened Star coordinate computation to prevent broadcast task crashes.
+- UI: Restored configuration-driven model zoom (adjustable via config.toml).
+- Tracking: Verified tracking scaling matches physical mount behavior (1.33x correction).
+
+## [0.2.14] - 2026-01-26
+### Fixed
+- Tracking: Implemented INDI-compliant guide rate scaling (value/80.0).
+- UI: Refined dashboard whitespace and camera overview zoom (15.0 units).
+
+## [0.2.13] - 2026-01-26
+### Fixed
+- GOTO: Implemented explicit state reset on new target reception to prevent "Transition Stalls".
+- Model: Pointing model is now 100% "perfect" geometrically (all imperfections disabled by default).
+- UI: Standardized all dashboard fonts to 1.3vw.
+
+## [0.2.12] - 2026-01-26
+### Fixed
+- Web Console: Hardened broadcast loop with attribute checks and manual HMS/DMS formatter to prevent silent crashes.
+- Star Catalog: Added Regulus, Aldebaran, and Fomalhaut to the schematic FOV view.
+
+## [0.2.11] - 2026-01-26
+### Fixed
+- UI: Switched to tabular fonts and fixed-width layout for telemetry.
+- FOV: Added three concentric circles (10, 20, 30 arcmin) to 1-degree FOV view.
+
+## [0.2.10] - 2026-01-26
+### Fixed
+- Stability: Resolved "Zero display" regression in Web Console.
+- Time: Anchored virtual sky to simulation start date for perfect clock sync.
+- Epoch: Switched to current epoch (real-time) to match SkySafari 7 default behavior.
 
 ## [0.2.9] - 2026-01-26
 ### Fixed
-- Stability: Hardened Web Console broadcast to prevent "Zero display" crashes.
-- Tracking: Corrected sub-step accumulation logic to resolve subtle tracking drift.
-- Time: Anchored virtual sky to simulation start date for perfect clock sync.
-- Epoch: Switched to current epoch (real-time) to match SkySafari 7 default behavior.
-- UI: Unified RA/Dec precision and restored dashboard font visibility.
-- UI: Backed out default 3D camera for a better field of view.
+- Motor Engine: Refactored integer step application to eliminate sub-step rounding accumulation.
 
 ## [0.2.8] - 2026-01-26
 ### Fixed
-- Motor Engine: Refactored integer step application to eliminate sub-step rounding accumulation during tracking.
-- Web Console: Anchored simulation time to a fixed start date to prevent time-drift in sky model.
 - Web Console UI: Unified precision for RA/Dec/LST (1 decimal place for seconds).
 - Web Console UI: Added dynamic Geographic Location (GEO) display synced from SkySafari.
-- Web Console UI: Increased velocity precision to 4 decimal places ("/s").
-- Web Console UI: Added more bright stars (Regulus, Aldebaran, Fomalhaut) and adjusted default camera zoom.
 
 ## [0.2.7] - 2026-01-26
 ### Fixed
-- Web Console UI: Restored state broadcast by adding robust attribute checks for RA/Dec/LST objects.
-- Web Console UI: Reduced horizontal space consumption and further decreased font size.
-- Web Console UI: Standardized precision for RA/Dec/LST and increased AZM/ALT precision to 4 decimal places.
+- Web Console UI: Restored state broadcast by adding robust attribute checks.
 
 ## [0.2.6] - 2026-01-26
 ### Fixed
 - Reverted tracking rate scaling to /60 divisor to restore reasonable slew speeds.
-- Web Console UI: Standardized decimal places for RA/Dec/LST (1 decimal second).
-- Web Console UI: Increased precision for AZM/ALT (3 decimal places).
-- Web Console UI: Reduced dashboard width and adjusted fonts for better horizontal space efficiency.
 
 ## [0.2.5] - 2026-01-26
 ### Fixed
 - Disabled wrapping for Altitude axis to prevent "GOTO through Nadir" issues.
-- Fixed tracking rate scaling (removed incorrect /60 divisor) to resolve tracking drift.
-- Improved Web Console telemetry alignment using tabular fonts and fixed-width labels.
+- Fixed tracking rate scaling (removed incorrect /60 divisor).
+- Improved Web Console telemetry alignment.
 
 ## [0.2.4] - 2026-01-25
 ### Added
-- Dynamic observer location sync: Simulator now recognizes and applies geographic coordinates sent by SkySafari 7 (WiFi Command 0x31).
+- Dynamic observer location sync: Simulator now recognizes and applies coordinates sent by SkySafari 7.
 
 ## [0.2.3] - 2026-01-25
 ### Changed
 - Web Console UI: Unified version display into title.
-- Web Console UI: Improved formatting for Mount Lights and Power status.
 - Web Console UI: Axis speed display changed to arcseconds per second ("/s").
 
 ## [0.2.2] - 2026-01-25
 ### Added
-- Comprehensive Mount Dashboard in Web Console (Battery, Lights, Coordinates).
-- Real-time synchronization of Charging state in Web Console.
+- Comprehensive Mount Dashboard in Web Console.
+- Real-time synchronization of Charging state.
 
 ## [0.2.1] - 2026-01-25
 ### Fixed
-- Switched East and West cardinal labels in the Web Console to match standard astronomical orientation.
+- Switched East and West cardinal labels in the Web Console.
 
 ## [0.2.0] - 2026-01-25
 ### Added
 - High-fidelity 24-bit integer motor engine.
-- NexStar Evolution device profile (Versions: Motors 7.19.5130, WiFi 0.0.256).
-- Modular `AuxBus` and `AuxDevice` architecture.
-- Categorized logging (Connection, Protocol, Command, Motion, Device).
-- Integer-based GOTO completion and snapping logic.
-- Comprehensive User and Developer manuals.
-
-### Fixed
-- SkySafari connection hanging due to StarSense accessory conflicts.
-- GOTO commands failing to signal completion in the physics loop.
-- Type errors in WiFi module initialization.
-- Redundant and obsolete test scripts removed.
-
-### Changed
-- Refactored `MotorController` from float-based to integer-step-based.
-- Improved "Absolute Silence" strategy for non-simulated devices.
+- NexStar Evolution device profile.
+- Modular AuxBus and AuxDevice architecture.
+- Categorized logging.
+- Comprehensive manuals.
