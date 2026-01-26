@@ -1,16 +1,16 @@
 """
-Simulated Generic Device (Main Board, Hand Controllers).
+Generic/Empty device for the AUX bus.
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from .base import AuxDevice
 
 
 class GenericDevice(AuxDevice):
-    """Simple device that only responds to GET_VER (0xFE)."""
+    """A device that responds to GET_VER but does nothing else."""
 
-    def __init__(self, device_id: int, version=(1, 0, 0, 0)):
-        super().__init__(device_id, version)
+    def __init__(self, device_id: int, config: Dict[str, Any], version=(1, 0, 0, 0)):
+        super().__init__(device_id, version, config)
 
     def handle_command(
         self, sender_id: int, command_id: int, data: bytes

@@ -76,6 +76,18 @@ class WebConsole:
         try:
             while True:
                 if clients:
+                    # Update observer position from potentially updated config
+                    self.obs.lat = str(
+                        self.telescope.config.get("observer", {}).get(
+                            "latitude", self.obs.lat
+                        )
+                    )
+                    self.obs.lon = str(
+                        self.telescope.config.get("observer", {}).get(
+                            "longitude", self.obs.lon
+                        )
+                    )
+
                     # Update observer time
                     self.obs.date = ephem.now()
                     self.obs.epoch = self.obs.date
@@ -228,7 +240,11 @@ INDEX_HTML = """
     <title>Celestron AUX 3D Console v{VERSION_PLACEHOLDER}</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1b26; color: #7aa2f7; font-family: monospace; }
-        #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 25vw; min-width: 250px; font-size: 1.1vw; }
+        #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 25vw; min-width: 280px; font-size: 1.1vw; }
+        #telemetry span { font-variant-numeric: tabular-nums; }
+        .telemetry-label { color: #565f89; width: 60px; display: inline-block; }
+        .telemetry-value { text-align: right; min-width: 80px; display: inline-block; }
+        .telemetry-rate { color: #7aa2f7; font-size: 0.9vw; width: 70px; text-align: right; display: inline-block; }
         #sky-view { position: absolute; top: 1vh; right: 1vw; background: rgba(0, 0, 0, 0.8); border: 1px solid #414868; width: 30vh; height: 30vh; border-radius: 50%; overflow: hidden; }
         #zoom-view { position: absolute; bottom: 1vh; right: 1vw; background: rgba(0, 0, 0, 0.9); border: 2px solid #f7768e; width: 30vh; height: 30vh; border-radius: 4px; overflow: hidden; }
         #controls { position: absolute; bottom: 1vh; left: 1vw; color: #565f89; font-size: 1vw; }
@@ -251,16 +267,16 @@ INDEX_HTML = """
             AUX Digital Twin <span style="font-size: 0.8vw; color: #565f89; font-weight: normal;">v{VERSION_PLACEHOLDER}</span>
         </h2>
         <div id="telemetry">
-            <div class="telemetry-row"><span>AZM:</span> <span id="azm" class="cyan">0.00</span>° (<span id="v_azm" class="blue">0.0</span>"/s)</div>
-            <div class="telemetry-row"><span>ALT:</span> <span id="alt" class="cyan">0.00</span>° (<span id="v_alt" class="blue">0.0</span>"/s)</div>
-            <div class="telemetry-row"><span>RA:</span> <span id="ra" class="yellow">00:00:00</span></div>
-            <div class="telemetry-row"><span>DEC:</span> <span id="dec" class="yellow">+00:00:00</span></div>
-            <div class="telemetry-row"><span>Power:</span> <span id="pwr" class="magenta">0.0V</span></div>
-            <div class="telemetry-row"><span>LST:</span> <span id="lst" class="yellow">00:00:00</span></div>
-            <div class="telemetry-row"><span>Status:</span> <span id="status" class="green">IDLE</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">AZM:</span> <span id="azm" class="cyan telemetry-value">0.00</span>° <span id="v_azm" class="telemetry-rate">0.0</span>"/s</div>
+            <div class="telemetry-row"><span class="telemetry-label">ALT:</span> <span id="alt" class="cyan telemetry-value">0.00</span>° <span id="v_alt" class="telemetry-rate">0.0</span>"/s</div>
+            <div class="telemetry-row"><span class="telemetry-label">RA:</span> <span id="ra" class="yellow telemetry-value">00:00:00</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">DEC:</span> <span id="dec" class="yellow telemetry-value">+00:00:00</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">LST:</span> <span id="lst" class="yellow telemetry-value">00:00:00</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">Power:</span> <span id="pwr" class="magenta telemetry-value">0.0V</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">Status:</span> <span id="status" class="green telemetry-value">IDLE</span></div>
             <div style="border-top: 1px solid #414868; margin-top: 10px; padding-top: 10px;">
                 <div style="font-size: 0.8vw; color: #565f89; margin-bottom: 5px;">Mount Lights</div>
-                <div id="lights" style="font-size: 0.9vw;" class="blue">-</div>
+                <div id="lights" style="font-size: 0.9vw; font-variant-numeric: tabular-nums;" class="blue">-</div>
             </div>
         </div>
         <div id="collision" class="warning" style="display:none; margin-top:10px">

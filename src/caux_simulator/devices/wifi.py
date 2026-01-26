@@ -14,7 +14,7 @@ class WiFiModule(AuxDevice):
 
     def __init__(self, device_id: int, config: Dict[str, Any], version=(2, 40, 0, 0)):
         # WiFly version 2.40
-        super().__init__(device_id, version)
+        super().__init__(device_id, version, config)
 
         # Register Handshake handlers
         self.handlers.update(
@@ -34,7 +34,19 @@ class WiFiModule(AuxDevice):
 
     def handle_set_location(self, data: bytes, snd: int, rcv: int) -> bytes:
         """WiFi command 0x31 (Set Location)."""
+        import struct
+
         self.log_cmd(snd, "WIFI_SET_LOCATION", data)
+        # Data format is 2 floats (Little Endian): Latitude, Longitude
+        if len(data) == 8:
+            lat, lon = struct.unpack("<ff", data)
+            logger.info(f"WiFi received Location: Lat={lat:.4f}, Lon={lon:.4f}")
+            # Update the global config so NexStarMount/WebConsole can see it
+            if "observer" not in self.config:
+                self.config["observer"] = {}
+            self.config["observer"]["latitude"] = lat
+            self.config["observer"]["longitude"] = lon
+
         return b"\x01"  # Success
 
     def handle_config(self, data: bytes, snd: int, rcv: int) -> bytes:

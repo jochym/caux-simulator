@@ -44,7 +44,7 @@ class MotorController(AuxDevice):
         initial_pos: float = 0.0,
         version: Tuple[int, int, int, int] = (7, 19, 20, 10),
     ):
-        super().__init__(device_id, version)
+        super().__init__(device_id, version, config)
 
         # Positions stored as 24-bit integers [0, 16777216)
         self.steps = int((initial_pos % 1.0) * STEPS_PER_REV)
@@ -58,7 +58,6 @@ class MotorController(AuxDevice):
 
         # Max rate (default 10 deg/s in MC units = approx 466033 steps/s)
         self.max_rate_steps = 466033
-
         self.use_maxrate = False
         self.approach = 0
         self.slewing = False
@@ -266,12 +265,13 @@ class MotorController(AuxDevice):
         return b""
 
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        # Fraction * 2^24. Simplified:
-        self.guide_rate_steps = unpack_int3_raw(data) / 60.0  # Placeholder logic
+        # Data is fraction of revolution * 2^24.
+        # This matches our STEPS_PER_REV.
+        self.guide_rate_steps = unpack_int3_raw(data)
         return b""
 
     def set_neg_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.guide_rate_steps = -unpack_int3_raw(data) / 60.0
+        self.guide_rate_steps = -unpack_int3_raw(data)
         return b""
 
     def _get_diff(self) -> int:
@@ -334,7 +334,11 @@ class MotorController(AuxDevice):
         # Apply whole steps
         whole_steps = int(self._step_accumulator)
         if whole_steps != 0:
-            self.steps = (self.steps + whole_steps) % STEPS_PER_REV
+            new_steps = self.steps + whole_steps
+            if self.device_id == 0x10:  # AZM Wraps
+                self.steps = new_steps % STEPS_PER_REV
+            else:  # ALT does NOT wrap
+                self.steps = max(0, min(STEPS_PER_REV - 1, new_steps))
             self._step_accumulator -= whole_steps
 
         # Final check if GOTO reached target during normal move

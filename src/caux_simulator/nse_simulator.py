@@ -199,6 +199,10 @@ def handle_stellarium_cmd(tel: NexStarMount, d: bytes) -> int:
 
 def make_stellarium_status(tel: NexStarMount, obs: ephem.Observer) -> bytes:
     """Generates Stellarium status packet (Position report)."""
+    # Update observer position from potentially updated config
+    obs.lat = str(tel.config.get("observer", {}).get("latitude", obs.lat))
+    obs.lon = str(tel.config.get("observer", {}).get("longitude", obs.lon))
+
     obs.date = ephem.now()
     obs.epoch = obs.date  # Use JNow
     sky_azm, sky_alt = tel.get_sky_altaz()

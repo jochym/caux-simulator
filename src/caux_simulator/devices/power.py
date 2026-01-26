@@ -15,7 +15,7 @@ class PowerModule(AuxDevice):
 
     def __init__(self, device_id: int, config: Dict[str, Any], version=(2, 0, 0, 0)):
         # Main board version 2.00
-        super().__init__(device_id, version)
+        super().__init__(device_id, version, config)
 
         self.voltage = 12345678  # microvolts
         self.current = 2468  # mA

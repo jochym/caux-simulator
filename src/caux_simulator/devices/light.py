@@ -14,7 +14,7 @@ class LightController(AuxDevice):
 
     def __init__(self, device_id: int, config: Dict[str, Any], version=(7, 11, 0, 0)):
         # Version 7.11
-        super().__init__(device_id, version)
+        super().__init__(device_id, version, config)
 
         self.lt_tray = 128
         self.lt_wifi = 255

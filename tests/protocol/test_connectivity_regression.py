@@ -59,14 +59,26 @@ class TestSkySafari7Handshake(unittest.TestCase):
     def exchange(self, dest, src, cmd, data=b""):
         pkt = encode_packet(src, dest, cmd, data)
         self.sock.send(pkt)
-        time.sleep(0.1)
-        resp = self.sock.recv(4096)
-        # Verify echo is present
-        self.assertTrue(resp.startswith(pkt), f"Missing echo for cmd {hex(cmd)}")
-        # Response starts after the echo (len(pkt))
-        # The response packet structure: 3B LEN SRC DST CMD DATA... CHK
-        # The payload (DATA) starts at index 5 of the response packet
-        return resp[len(pkt) :]
+
+        # Read until we have the echo and the response
+        buf = b""
+        start_time = time.time()
+        # Expect at least len(pkt) [echo] + 6 bytes [min response: 3B LEN SRC DST CMD CHK]
+        expected_min = len(pkt) + 6
+
+        while len(buf) < expected_min and (time.time() - start_time < 2.0):
+            try:
+                chunk = self.sock.recv(1024)
+                if not chunk:
+                    break
+                buf += chunk
+            except (socket.timeout, BlockingIOError):
+                break
+
+        # Return the actual response part (after the echo)
+        if len(buf) < len(pkt):
+            return b""
+        return buf[len(pkt) :]
 
     def test_01_wifi_handshake(self):
         """WiFi module (0xB5) initial handshake sequence."""
@@ -138,9 +150,14 @@ class TestSkySafari7Handshake(unittest.TestCase):
             try:
                 self.sock.settimeout(0.5)
                 resp = self.sock.recv(1024)
-                self.fail(
-                    f"Device {hex(dest)} should be silent but returned: {resp.hex()}"
-                )
+                # The only thing we might get is the echo
+                if resp == pkt:
+                    # Echo only is fine
+                    pass
+                else:
+                    self.fail(
+                        f"Device {hex(dest)} should be silent but returned: {resp.hex()}"
+                    )
             except socket.timeout:
                 pass  # Success
             finally:

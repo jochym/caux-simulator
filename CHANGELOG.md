@@ -1,6 +1,12 @@
 # Changelog
 
-## [0.2.3] - 2026-01-25
+## [0.2.5] - 2026-01-26
+### Fixed
+- Disabled wrapping for Altitude axis to prevent "GOTO through Nadir" issues.
+- Fixed tracking rate scaling (removed incorrect /60 divisor) to resolve tracking drift.
+- Improved Web Console telemetry alignment using tabular fonts and fixed-width labels.
+
+## [0.2.4] - 2026-01-25
 ### Changed
 - Web Console UI: Unified version display into title.
 - Web Console UI: Improved formatting for Mount Lights and Power status.

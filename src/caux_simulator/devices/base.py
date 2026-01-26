@@ -17,9 +17,12 @@ logger = logging.getLogger(__name__)
 class AuxDevice(ABC):
     """Abstract base class for all simulated AUX devices."""
 
-    def __init__(self, device_id: int, version: Tuple[int, int, int, int]):
+    def __init__(
+        self, device_id: int, version: Tuple[int, int, int, int], config: Dict[str, Any]
+    ):
         self.device_id = device_id
         self.version = version
+        self.config = config
         self.handlers: Dict[int, Any] = {0xFE: self.handle_get_version}
 
     @abstractmethod
