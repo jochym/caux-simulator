@@ -267,11 +267,13 @@ class MotorController(AuxDevice):
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
         # Data is fraction of revolution * 2^24.
         # This matches our STEPS_PER_REV.
-        self.guide_rate_steps = unpack_int3_raw(data)
+        # BUT real MC uses different scaling for guide rates.
+        # Reverting to /60.0 placeholder as requested.
+        self.guide_rate_steps = unpack_int3_raw(data) / 60.0
         return b""
 
     def set_neg_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.guide_rate_steps = -unpack_int3_raw(data)
+        self.guide_rate_steps = -unpack_int3_raw(data) / 60.0
         return b""
 
     def _get_diff(self) -> int:
@@ -327,19 +329,19 @@ class MotorController(AuxDevice):
             # If not in GOTO (manual slew), we don't apply min_r
             pass
 
-        # Accumulate fractional steps
+        # Accumulate whole steps from the rate
         move_float = (self.rate_steps + self.guide_rate_steps) * interval
         self._step_accumulator += move_float
 
-        # Apply whole steps
+        # Immediate integer step application to avoid drift
         whole_steps = int(self._step_accumulator)
         if whole_steps != 0:
+            self._step_accumulator -= whole_steps
             new_steps = self.steps + whole_steps
             if self.device_id == 0x10:  # AZM Wraps
                 self.steps = new_steps % STEPS_PER_REV
             else:  # ALT does NOT wrap
                 self.steps = max(0, min(STEPS_PER_REV - 1, new_steps))
-            self._step_accumulator -= whole_steps
 
         # Final check if GOTO reached target during normal move
         if self.goto:

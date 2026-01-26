@@ -76,21 +76,17 @@ class WebConsole:
         try:
             while True:
                 if clients:
-                    # Update observer position from potentially updated config
-                    self.obs.lat = str(
-                        self.telescope.config.get("observer", {}).get(
-                            "latitude", self.obs.lat
-                        )
-                    )
-                    self.obs.lon = str(
-                        self.telescope.config.get("observer", {}).get(
-                            "longitude", self.obs.lon
-                        )
-                    )
+                    # Use a consistent simulation-based time for ephem to avoid drift
+                    # Anchor self.obs.date to the start of the simulation + sim_time
+                    if not hasattr(self, "_start_date"):
+                        self._start_date = ephem.now()
 
-                    # Update observer time
-                    self.obs.date = ephem.now()
-                    self.obs.epoch = self.obs.date
+                    self.obs.date = ephem.Date(
+                        self._start_date + self.telescope.sim_time / 86400.0
+                    )
+                    self.obs.epoch = self.telescope.config.get("observer", {}).get(
+                        "epoch", "2000"
+                    )
 
                     sky_azm, sky_alt = self.telescope.get_sky_altaz()
                     ra, dec = self.obs.radec_of(sky_azm * 2 * pi, sky_alt * 2 * pi)
@@ -113,6 +109,9 @@ class WebConsole:
                         ("Antares", ephem.star("Antares")),
                         ("Pollux", ephem.star("Pollux")),
                         ("Castor", ephem.star("Castor")),
+                        ("Regulus", ephem.star("Regulus")),
+                        ("Aldebaran", ephem.star("Aldebaran")),
+                        ("Fomalhaut", ephem.star("Fomalhaut")),
                     ]:
                         try:
                             body.compute(self.obs)
@@ -141,11 +140,23 @@ class WebConsole:
                     state = {
                         "azm": sky_azm * 360.0,
                         "alt": sky_alt * 360.0,
-                        "ra": str(ra),
-                        "dec": str(dec),
-                        "lst": str(self.obs.sidereal_time()),
+                        "ra": f"{ra.h}:{ra.m:02}:{ra.s:04.1f}"
+                        if hasattr(ra, "h")
+                        else str(ra),
+                        "dec": f"{dec.deg}:{dec.m:02}:{dec.s:04.1f}"
+                        if hasattr(dec, "deg")
+                        else str(dec),
+                        "lst": f"{self.obs.sidereal_time().h}:{self.obs.sidereal_time().m:02}:{self.obs.sidereal_time().s:04.1f}"
+                        if hasattr(self.obs.sidereal_time(), "h")
+                        else str(self.obs.sidereal_time()),
+                        "lat": f"{self.obs.lat.deg}:{self.obs.lat.m:02}:{self.obs.lat.s:02.0f}",
+                        "lon": f"{self.obs.lon.deg}:{self.obs.lon.m:02}:{self.obs.lon.s:02.0f}",
                         "v_azm": (
                             self.telescope.azm_rate + self.telescope.azm_guiderate
+                        )
+                        * 360.0,
+                        "v_alt": (
+                            self.telescope.alt_rate + self.telescope.alt_guiderate
                         )
                         * 360.0,
                         "v_alt": (
@@ -240,11 +251,11 @@ INDEX_HTML = """
     <title>Celestron AUX 3D Console v{VERSION_PLACEHOLDER}</title>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1b26; color: #7aa2f7; font-family: monospace; }
-        #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 25vw; min-width: 280px; font-size: 1.1vw; }
+        #info { position: absolute; top: 1vh; left: 1vw; background: rgba(26, 27, 38, 0.8); padding: 1.5vh; border: 1px solid #414868; border-radius: 4px; pointer-events: none; width: 22vw; min-width: 280px; font-size: 1.1vw; }
         #telemetry span { font-variant-numeric: tabular-nums; }
-        .telemetry-label { color: #565f89; width: 60px; display: inline-block; }
-        .telemetry-value { text-align: right; min-width: 80px; display: inline-block; }
-        .telemetry-rate { color: #7aa2f7; font-size: 0.9vw; width: 70px; text-align: right; display: inline-block; }
+        .telemetry-label { color: #565f89; width: 50px; display: inline-block; }
+        .telemetry-value { text-align: right; min-width: 110px; display: inline-block; }
+        .telemetry-rate { color: #7aa2f7; font-size: 0.9vw; width: 80px; text-align: right; display: inline-block; }
         #sky-view { position: absolute; top: 1vh; right: 1vw; background: rgba(0, 0, 0, 0.8); border: 1px solid #414868; width: 30vh; height: 30vh; border-radius: 50%; overflow: hidden; }
         #zoom-view { position: absolute; bottom: 1vh; right: 1vw; background: rgba(0, 0, 0, 0.9); border: 2px solid #f7768e; width: 30vh; height: 30vh; border-radius: 4px; overflow: hidden; }
         #controls { position: absolute; bottom: 1vh; left: 1vw; color: #565f89; font-size: 1vw; }
@@ -267,11 +278,12 @@ INDEX_HTML = """
             AUX Digital Twin <span style="font-size: 0.8vw; color: #565f89; font-weight: normal;">v{VERSION_PLACEHOLDER}</span>
         </h2>
         <div id="telemetry">
-            <div class="telemetry-row"><span class="telemetry-label">AZM:</span> <span id="azm" class="cyan telemetry-value">0.00</span>° <span id="v_azm" class="telemetry-rate">0.0</span>"/s</div>
-            <div class="telemetry-row"><span class="telemetry-label">ALT:</span> <span id="alt" class="cyan telemetry-value">0.00</span>° <span id="v_alt" class="telemetry-rate">0.0</span>"/s</div>
-            <div class="telemetry-row"><span class="telemetry-label">RA:</span> <span id="ra" class="yellow telemetry-value">00:00:00</span></div>
-            <div class="telemetry-row"><span class="telemetry-label">DEC:</span> <span id="dec" class="yellow telemetry-value">+00:00:00</span></div>
-            <div class="telemetry-row"><span class="telemetry-label">LST:</span> <span id="lst" class="yellow telemetry-value">00:00:00</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">AZM:</span> <span id="azm" class="cyan telemetry-value">0.0000</span>° <span id="v_azm" class="telemetry-rate">0.0000</span>"/s</div>
+            <div class="telemetry-row"><span class="telemetry-label">ALT:</span> <span id="alt" class="cyan telemetry-value">0.0000</span>° <span id="v_alt" class="telemetry-rate">0.0000</span>"/s</div>
+            <div class="telemetry-row"><span class="telemetry-label">RA:</span> <span id="ra" class="yellow telemetry-value">00:00:00.0</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">DEC:</span> <span id="dec" class="yellow telemetry-value">+00:00:00.0</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">LST:</span> <span id="lst" class="yellow telemetry-value">00:00:00.0</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">GEO:</span> <span id="geo" class="cyan telemetry-value">0:00:00, 0:00:00</span></div>
             <div class="telemetry-row"><span class="telemetry-label">Power:</span> <span id="pwr" class="magenta telemetry-value">0.0V</span></div>
             <div class="telemetry-row"><span class="telemetry-label">Status:</span> <span id="status" class="green telemetry-value">IDLE</span></div>
             <div style="border-top: 1px solid #414868; margin-top: 10px; padding-top: 10px;">
@@ -297,6 +309,7 @@ INDEX_HTML = """
         
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(geo.camera_fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 5); // Start further back
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
@@ -512,13 +525,16 @@ INDEX_HTML = """
         const ws = new WebSocket('ws://' + window.location.host + '/ws');
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
-            document.getElementById('azm').innerText = data.azm.toFixed(2);
-            document.getElementById('v_azm').innerText = (data.v_azm * 3600.0).toFixed(1);
-            document.getElementById('alt').innerText = data.alt.toFixed(2);
-            document.getElementById('v_alt').innerText = (data.v_alt * 3600.0).toFixed(1);
+            document.getElementById('azm').innerText = data.azm.toFixed(4);
+            document.getElementById('v_azm').innerText = (data.v_azm * 3600.0).toFixed(4);
+            document.getElementById('alt').innerText = data.alt.toFixed(4);
+            document.getElementById('v_alt').innerText = (data.v_alt * 3600.0).toFixed(4);
+            
+            // Format RA/Dec/LST with decimal seconds for consistency
             document.getElementById('ra').innerText = data.ra;
             document.getElementById('dec').innerText = data.dec;
             document.getElementById('lst').innerText = data.lst;
+            document.getElementById('geo').innerText = data.lat + ', ' + data.lon;
             
             let pwrStr = data.voltage.toFixed(1) + 'V';
             if (data.charging) pwrStr += ' [CHG]';

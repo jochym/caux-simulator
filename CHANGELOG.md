@@ -1,4 +1,15 @@
-# Changelog
+## [0.2.7] - 2026-01-26
+### Fixed
+- Web Console UI: Restored state broadcast by adding robust attribute checks for RA/Dec/LST objects.
+- Web Console UI: Reduced horizontal space consumption and further decreased font size.
+- Web Console UI: Standardized precision for RA/Dec/LST and increased AZM/ALT precision to 4 decimal places.
+
+## [0.2.6] - 2026-01-26
+### Fixed
+- Reverted tracking rate scaling to /60 divisor to restore reasonable slew speeds.
+- Web Console UI: Standardized decimal places for RA/Dec/LST (1 decimal second).
+- Web Console UI: Increased precision for AZM/ALT (3 decimal places).
+- Web Console UI: Reduced dashboard width and adjusted fonts for better horizontal space efficiency.
 
 ## [0.2.5] - 2026-01-26
 ### Fixed
