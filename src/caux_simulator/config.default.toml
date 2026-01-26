@@ -3,22 +3,24 @@ name = "Default Location"
 latitude = 50.1822
 longitude = 19.7925
 elevation = 400
+# Epoch: "2000" or "current" (default: current)
+epoch = "current"
 
 [simulator]
 aux_port = 2000
 stellarium_port = 10001
 web_port = 8080
-web_host = "127.0.0.1"
+web_host = "0.0.0.0"
 
 [simulator.imperfections]
-backlash_steps = 50
-periodic_error_arcsec = 15.0
+backlash_steps = 0
+periodic_error_arcsec = 0.0
 periodic_error_period_sec = 480.0
-cone_error_arcmin = 5.0
-non_perpendicularity_arcmin = 3.0
-refraction_enabled = true
-encoder_jitter_steps = 2
-clock_drift = 0.0001 # 0.01% drift
+cone_error_arcmin = 0.0
+non_perpendicularity_arcmin = 0.0
+refraction_enabled = false
+encoder_jitter_steps = 0
+clock_drift = 0.0
 
 [simulator.geometry]
 # Dimensions in meters (standard Evolution 8)
@@ -33,20 +35,20 @@ camera_length = 0.12
 # Web Console Visual settings
 label_font_size = 48
 label_cardinal_scale = 0.3
-label_scale_scale = 0.24  # 80% of cardinal
+label_scale_scale = 0.24
 indicator_size = 0.02
 az_scale_radius = 0.45
 alt_scale_radius = 0.35
 grid_size = 10
 grid_divisions = 20
-camera_distance = 4.0
+# distance from model in units (default: 15.0)
+camera_distance = 15.0
 camera_fov = 20
 camera_alt = 20
 camera_az = 300
 
 [logging]
 level = "INFO"
-# file = "caux_sim.log"
 format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # Detailed logging categories (bitmask values can be combined)

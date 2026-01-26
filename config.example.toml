@@ -41,7 +41,7 @@ alt_scale_radius = 0.35
 grid_size = 10
 grid_divisions = 20
 # distance from model in units (default: 15.0)
-camera_distance = 15.0
+camera_distance = 13.0
 camera_fov = 20
 camera_alt = 30
 camera_az = 45
