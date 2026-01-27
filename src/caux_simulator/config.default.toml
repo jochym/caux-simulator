@@ -8,11 +8,10 @@ epoch = "current"
 
 [simulator]
 aux_port = 2000
-stellarium_port = 10001
 web_port = 8080
-web_host = "0.0.0.0"
-
-[simulator.imperfections]
+web_host = \"0.0.0.0\"
+stellarium_enabled = false
+stellarium_port = 10001
 # Physical gear slack in encoder steps
 azm_backlash_steps = 0
 alt_backlash_steps = 0

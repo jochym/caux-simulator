@@ -55,7 +55,8 @@ caux-sim --debug-log --debug-log-file my_debug.log
 
 - `-t`, `--text`: Use headless mode (no TUI).
 - `-p PORT`, `--port PORT`: AUX bus TCP port (default: 2000).
-- `-s PORT`, `--stellarium PORT`: Stellarium TCP port (default: 10001).
+- `-s`, `--stellarium`: Enable Stellarium TCP server.
+- `--stellarium-port PORT`: Stellarium TCP port (default: 10001).
 - `--web`: Enable 3D Web Console (default: http://127.0.0.1:8080).
 - `--perfect`: Disable all mechanical imperfections (backlash, PE, etc.).
 - `-d`, `--debug`: Enable debug logging to console.

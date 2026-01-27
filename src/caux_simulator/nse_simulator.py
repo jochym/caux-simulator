@@ -320,11 +320,16 @@ async def main_async():
     )
 
     parser.add_argument(
-        "-s",
         "--stellarium",
+        action="store_true",
+        default=sim_cfg.get("stellarium_enabled", False),
+        help="Enable Stellarium TCP server",
+    )
+    parser.add_argument(
+        "--stellarium-port",
         type=int,
         default=sim_cfg.get("stellarium_port", 10001),
-        help="Stellarium port",
+        help="Stellarium port (default: 10001)",
     )
     parser.add_argument(
         "--web", action="store_true", help="Enable web-based 3D console"
@@ -416,7 +421,16 @@ async def main_async():
 
     background_tasks.append(asyncio.create_task(broadcast(sport=args.port)))
     background_tasks.append(asyncio.create_task(timer(0.1, telescope)))
-    background_tasks.append(asyncio.create_task(report_scope_pos(0.1, telescope, obs)))
+
+    stell_server = None
+    if args.stellarium:
+        background_tasks.append(
+            asyncio.create_task(report_scope_pos(0.1, telescope, obs))
+        )
+        loop = asyncio.get_running_loop()
+        stell_server = await loop.create_server(
+            lambda: StellariumServer(telescope, obs), host="", port=args.stellarium_port
+        )
 
     if args.web:
         try:
@@ -435,11 +449,6 @@ async def main_async():
             logger.info("Run: pip install .[web]")
 
     scope_server = await asyncio.start_server(handle_port2000, host="", port=args.port)
-
-    loop = asyncio.get_running_loop()
-    stell_server = await loop.create_server(
-        lambda: StellariumServer(telescope, obs), host="", port=args.stellarium
-    )
 
     if args.text:
         logger.info(f"Simulator running in headless mode on port {args.port}")
@@ -464,7 +473,8 @@ async def main_async():
                 await asyncio.sleep(1.0)
 
     scope_server.close()
-    stell_server.close()
+    if stell_server:
+        stell_server.close()
 
     # Graceful shutdown of background tasks
     if web_console_instance:
