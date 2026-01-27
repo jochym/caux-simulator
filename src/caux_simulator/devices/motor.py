@@ -51,10 +51,37 @@ class MotorController(AuxDevice):
         version: Tuple[int, int, int, int] = (7, 19, 20, 10),
     ):
         super().__init__(device_id, version, config)
+        self.axis_name = "azm" if device_id == 0x10 else "alt"
+        imp = config.get("simulator", {}).get("imperfections", {})
 
         # Positions stored as 24-bit integers [0, 16777216)
         self.steps = int((initial_pos % 1.0) * STEPS_PER_REV)
         self.trg_steps = self.steps
+
+        # Physical Backlash (Actual gear slack in encoder steps)
+        # This is the physical gap that the motor must move through before the OTA follows.
+        self.phys_backlash = int(
+            imp.get(f"{self.axis_name}_backlash_steps", imp.get("backlash_steps", 0))
+        )
+
+        # Backlash Correction (MC internal compensation jump values)
+        # These are set via the AUX protocol (0x10/0x11) and represent how many steps
+        # the MC "jumps" to quickly take up physical slack.
+        self.backlash_corr_pos = 0
+        self.backlash_corr_neg = 0
+
+        # Gravity unbalance: -1 (loaded negative), 0 (neutral), 1 (loaded positive)
+        # If unbalanced, gravity pulls the OTA to one side of the slack gap.
+        self.unbalance = int(imp.get(f"{self.axis_name}_unbalance", 0))
+
+        # Internal slack state [0, phys_backlash]
+        # Represents the current position of the motor within the gear gap.
+        # If unbalanced, initialize slack to the loaded side.
+        self._backlash_slack = 0 if self.unbalance <= 0 else self.phys_backlash
+        self.pointing_steps = self.steps
+
+        # Direction tracking for correction jump routines
+        self.last_direction = 0  # -1, 0, 1
 
         # Internal high-precision accumulator for sub-step movements
         self._step_accumulator = Decimal(0)
@@ -82,8 +109,8 @@ class MotorController(AuxDevice):
                 0x06: self.set_pos_guiderate,
                 0x07: self.set_neg_guiderate,
                 0x0B: self.handle_level_start,
-                0x10: self.set_backlash,
-                0x11: self.set_backlash,
+                0x10: self.set_backlash_pos,
+                0x11: self.set_backlash_neg,
                 0x12: self.get_level_done,
                 0x13: self.get_slew_done,
                 0x17: self.handle_goto_slow,
@@ -100,14 +127,48 @@ class MotorController(AuxDevice):
                 0x3A: self.handle_set_cordwrap_pos,
                 0x3B: self.get_cordwrap_enabled,
                 0x3C: self.get_cordwrap_pos,
-                0x40: self.get_backlash,
-                0x41: self.get_backlash,
+                0x40: self.get_backlash_pos,
+                0x41: self.get_backlash_neg,
                 0x47: self.get_autoguide_rate,
                 0xFC: self.get_approach,
                 0xFD: self.set_approach,
                 0xFF: self.get_position,
             }
         )
+
+    def _apply_backlash_jump(self, new_rate: Decimal):
+        """Applies internal MC backlash correction jump when reversing direction."""
+        new_dir = 1 if new_rate > 0 else -1 if new_rate < 0 else 0
+
+        if new_dir != 0 and new_dir != self.last_direction:
+            # Backlash Canceling logic for unbalanced Alt axis
+            # If gravity already took up the slack in our new direction, SKIP the jump.
+            skip_jump = False
+            if self.unbalance > 0 and new_dir > 0:
+                skip_jump = True  # Gravity already pulled it positive
+            elif self.unbalance < 0 and new_dir < 0:
+                skip_jump = True  # Gravity already pulled it negative
+
+            if not skip_jump:
+                corr = self.backlash_corr_pos if new_dir > 0 else self.backlash_corr_neg
+                if corr > 0:
+                    jump = Decimal(corr) if new_dir > 0 else Decimal(-corr)
+                    # The jump is an active motor movement
+                    self._step_accumulator += jump
+                    logger.debug(
+                        f"[0x{self.device_id:02x}] Backlash Jump: {jump} steps (Direction reversal)"
+                    )
+            else:
+                logger.debug(
+                    f"[0x{self.device_id:02x}] Backlash Jump skipped: Gravity already took up slack."
+                )
+
+            self.last_direction = new_dir
+
+    @property
+    def pointing_pos(self) -> float:
+        """Returns physical pointing position as fraction [0, 1]."""
+        return float(self.pointing_steps) / STEPS_PER_REV
 
     @property
     def pos(self) -> float:
@@ -119,7 +180,10 @@ class MotorController(AuxDevice):
         """Sets position from fraction [0, 1]."""
         self.steps = int((val % 1.0) * STEPS_PER_REV)
         self.trg_steps = self.steps
+        self.pointing_steps = self.steps
         self._step_accumulator = Decimal(0)
+        # Reset slack to loaded side if unbalanced
+        self._backlash_slack = 0 if self.unbalance <= 0 else self.phys_backlash
 
     @property
     def trg_pos(self) -> float:
@@ -159,7 +223,7 @@ class MotorController(AuxDevice):
         return pack_int3_raw(self.steps)
 
     def set_position(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.steps = self.trg_steps = unpack_int3_raw(data)
+        self.steps = self.trg_steps = self.pointing_steps = unpack_int3_raw(data)
         self._step_accumulator = Decimal(0)
         return b""
 
@@ -215,13 +279,17 @@ class MotorController(AuxDevice):
         return b""
 
     def handle_move_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.rate_steps = Decimal(RATES.get(data[0], 0))
+        new_rate = Decimal(RATES.get(data[0], 0))
+        self._apply_backlash_jump(new_rate)
+        self.rate_steps = new_rate
         self.slewing = self.rate_steps > 0
         self.goto = False
         return b""
 
     def handle_move_neg(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.rate_steps = Decimal(-RATES.get(data[0], 0))
+        new_rate = Decimal(-RATES.get(data[0], 0))
+        self._apply_backlash_jump(new_rate)
+        self.rate_steps = new_rate
         self.slewing = self.rate_steps < 0
         self.goto = False
         return b""
@@ -284,10 +352,20 @@ class MotorController(AuxDevice):
     def get_cordwrap_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
         return pack_int3_raw(getattr(self, "cordwrap_steps", 0))
 
-    def get_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
-        return bytes([0])
+    def get_backlash_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return bytes([self.backlash_corr_pos & 0xFF])
 
-    def set_backlash(self, data: bytes, snd: int, rcv: int) -> bytes:
+    def get_backlash_neg(self, data: bytes, snd: int, rcv: int) -> bytes:
+        return bytes([self.backlash_corr_neg & 0xFF])
+
+    def set_backlash_pos(self, data: bytes, snd: int, rcv: int) -> bytes:
+        if len(data) > 0:
+            self.backlash_corr_pos = int(data[0])
+        return b""
+
+    def set_backlash_neg(self, data: bytes, snd: int, rcv: int) -> bytes:
+        if len(data) > 0:
+            self.backlash_corr_neg = int(data[0])
         return b""
 
     def get_autoguide_rate(self, data: bytes, snd: int, rcv: int) -> bytes:
@@ -333,7 +411,11 @@ class MotorController(AuxDevice):
     def tick(self, interval: float) -> None:
         interval_dec = Decimal(str(interval))
 
-        if not self.slewing and abs(self.guide_rate_steps) < Decimal("1e-10"):
+        # Check if we need to process physics
+        is_moving = self.slewing or abs(self.guide_rate_steps) > Decimal("1e-10")
+        has_bias = self.unbalance != 0
+
+        if not is_moving and not has_bias:
             return
 
         if self.goto:
@@ -394,11 +476,49 @@ class MotorController(AuxDevice):
         whole_steps = int(self._step_accumulator)
         if whole_steps != 0:
             self._step_accumulator -= Decimal(whole_steps)
+
+            # 1. Update Encoder (always moves)
             new_steps = self.steps + whole_steps
             if self.device_id == 0x10:  # AZM Wraps
                 self.steps = new_steps % STEPS_PER_REV
             else:  # ALT does NOT wrap
                 self.steps = max(0, min(STEPS_PER_REV - 1, new_steps))
+
+            # 2. Update Physical Pointing (Hysteresis Model)
+            ds = whole_steps
+            if ds > 0:
+                potential_slack = self._backlash_slack + ds
+                if potential_slack > self.phys_backlash:
+                    move_ota = potential_slack - self.phys_backlash
+                    self._backlash_slack = self.phys_backlash
+                    self.pointing_steps += move_ota
+                else:
+                    self._backlash_slack = potential_slack
+            else:
+                potential_slack = self._backlash_slack + ds
+                if potential_slack < 0:
+                    move_ota = potential_slack
+                    self._backlash_slack = 0
+                    self.pointing_steps += move_ota
+                else:
+                    self._backlash_slack = potential_slack
+
+            # Apply limits/wrap to pointing
+            if self.device_id == 0x10:
+                self.pointing_steps %= STEPS_PER_REV
+            else:
+                self.pointing_steps = max(
+                    0, min(STEPS_PER_REV - 1, self.pointing_steps)
+                )
+
+        # 3. Apply "Unbalance" gravity correction (when stopped)
+        if not is_moving:
+            if self.unbalance > 0:  # Gravity pulls positive
+                self._backlash_slack = self.phys_backlash
+            elif self.unbalance < 0:  # Gravity pulls negative
+                self._backlash_slack = 0
+
+        # Final check if GOTO reached target during normal move
 
         # Final check if GOTO reached target during normal move
         if self.goto:

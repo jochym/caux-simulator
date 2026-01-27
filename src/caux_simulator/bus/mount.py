@@ -161,7 +161,7 @@ class NexStarMount:
 
     @property
     def backlash_steps(self) -> int:
-        return 0  # To be re-implemented with integer logic
+        return self.azm_motor.phys_backlash
 
     @property
     def jitter_sigma(self) -> float:
@@ -187,8 +187,8 @@ class NexStarMount:
 
     def get_sky_altaz(self) -> Tuple[float, float]:
         """Calculates actual pointing position including imperfections."""
-        sky_alt = self.alt_motor.pos
-        sky_azm = self.azm_motor.pos
+        sky_alt = self.alt_motor.pointing_pos
+        sky_azm = self.azm_motor.pointing_pos
 
         # 1. Cone error (Alt offset)
         sky_alt += self.cone_error

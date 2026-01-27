@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.22] - 2026-01-27
+### Added
+- Phase 3: Mechanical Backlash. Implemented a robust integer hysteresis model separating motor encoder movement from physical telescope pointing.
+- Motor Engine: Added internal MC backlash correction jump routines (AUX 0x10/0x11) to compensate for physical slack during direction reversal.
+- Motor Engine: Implemented gravity-induced backlash canceling (Unbalance) for the Altitude axis, simulating load-driven slack reset and automatic jump suppression.
+- Geometrical Imperfections: Extended Periodic Error corrections to both Azimuth and Altitude axes.
+- Configuration: Added `azm_backlash_steps`, `alt_backlash_steps`, and `alt_unbalance` to the imperfections model.
+
 ## [0.2.21] - 2026-01-27
 ### Added
 - Phase 2: Geometrical Imperfections. Implemented Cone Error, Non-Perpendicularity, Dual-axis Periodic Error, and Atmospheric Refraction in the pointing model.

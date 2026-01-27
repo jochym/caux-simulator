@@ -13,7 +13,13 @@ web_port = 8080
 web_host = "0.0.0.0"
 
 [simulator.imperfections]
-backlash_steps = 0
+# Physical gear slack in encoder steps
+azm_backlash_steps = 0
+alt_backlash_steps = 0
+# Gravity unbalance: -1 (loaded negative), 0 (neutral), 1 (loaded positive)
+azm_unbalance = 0
+alt_unbalance = 0
+
 periodic_error_arcsec = 0.0
 periodic_error_period_sec = 480.0
 cone_error_arcmin = 0.0

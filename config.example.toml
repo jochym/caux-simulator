@@ -14,8 +14,16 @@ aux_port = 2000
 web_port = 8080
 stellarium_port = 10001
 
-# Geometrical imperfections (Phase 2)
+# Mechanical imperfections (Phase 3)
 [simulator.imperfections]
+# Physical gear slack in encoder steps
+azm_backlash_steps = 100
+alt_backlash_steps = 150
+# Gravity unbalance for Alt axis: -1 (tail heavy), 0 (neutral), 1 (head heavy)
+# This forces slack to one end and cancels backlash routines in that direction.
+alt_unbalance = -1
+
+# Geometrical imperfections (Phase 2)
 cone_error_arcmin = 0.0
 non_perpendicularity_arcmin = 0.0
 periodic_error_arcsec = 0.0
