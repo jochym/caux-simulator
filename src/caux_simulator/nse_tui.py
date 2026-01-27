@@ -134,7 +134,7 @@ class SimulatorApp(App):
         self.set_interval(0.1, self.update_stats)
         self.log_sys(f"Simulator started on port {self.args.port}")
         if self.args.stellarium:
-            self.log_sys(f\"Stellarium server on port {self.args.stellarium_port}\")
+            self.log_sys(f"Stellarium server on port {self.args.stellarium_port}")
         self.log_sys(f"Location: {self.obs_cfg.get('name', 'Default')}")
 
     def update_stats(self) -> None:
