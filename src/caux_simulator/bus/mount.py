@@ -190,5 +190,25 @@ class NexStarMount:
         sky_alt = self.alt_motor.pos
         sky_azm = self.azm_motor.pos
 
-        # Default: Pure model (no imperfections)
+        # 1. Cone error (Alt offset)
+        sky_alt += self.cone_error
+
+        # 2. Non-perpendicularity (Azm offset scaling with tan(alt))
+        # Limit Alt to [-80, 80] to avoid tan() singularity
+        safe_alt_deg = max(-80.0, min(80.0, self.alt_motor.pos * 360.0))
+        sky_azm += self.non_perp * tan(radians(safe_alt_deg))
+
+        # 3. Periodic Error (Azm/RA and Alt/Dec)
+        if self.pe_period > 0:
+            error = self.pe_amplitude * sin(2 * pi * self.sim_time / self.pe_period)
+            sky_azm += error
+            sky_alt += error
+
+        # 4. Atmospheric Refraction (Approximate formula)
+        if self.refraction_enabled:
+            h = max(0.1, sky_alt * 360.0)
+            # Bennett's formula for refraction in arcmin
+            ref_arcmin = 1.0 / tan(radians(h + 7.31 / (h + 4.4)))
+            sky_alt += ref_arcmin / (60.0 * 360.0)
+
         return sky_azm % 1.0, sky_alt

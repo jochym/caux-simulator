@@ -11,7 +11,7 @@
 - **Pointing Error**: ~5-7' discrepancy in Az/Alt despite matching RA/Dec (investigated as transformation model differences).
 
 ## Roadmap
-1. **Phase 2**: Geometrical Imperfections (Cone Error, Non-Perp, PE).
+1. **Phase 2 (Completed)**: Geometrical Imperfections (Cone Error, Non-Perp, Dual-axis PE, Refraction).
 2. **Phase 3**: Mechanical Backlash (Integer Hysteresis Model).
 
 ## Documentation

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.21] - 2026-01-27
+### Added
+- Phase 2: Geometrical Imperfections. Implemented Cone Error, Non-Perpendicularity, Dual-axis Periodic Error, and Atmospheric Refraction in the pointing model.
+- Tests: Added comprehensive unit tests for all geometrical imperfections.
+
 ## [0.2.20] - 2026-01-27
 ### Fixed
 - Motor Engine: Fixed a 5-second stall during GOTO transitions (FAST -> SLOW) by ensuring the anti-stall timer is reset upon receiving new movement commands.
