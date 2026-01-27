@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.20] - 2026-01-27
+### Fixed
+- Motor Engine: Fixed a 5-second stall during GOTO transitions (FAST -> SLOW) by ensuring the anti-stall timer is reset upon receiving new movement commands.
+
 ## [0.2.19] - 2026-01-27
 ### Fixed
 - Guiding Arithmetic: Implemented exact rational scaling (128/10125) for guiderate commands, eliminating the 2.5 arcmin/15min drift caused by previous floating-point approximations.

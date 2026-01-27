@@ -175,6 +175,10 @@ class MotorController(AuxDevice):
                 f"[0x{self.device_id:02x}] Transition: GOTO Re-asserted (Steps {self.steps} -> {new_trg})"
             )
 
+        # Reset anti-stall timer for new movement
+        if hasattr(self, "_goto_stuck_start"):
+            del self._goto_stuck_start
+
         # Reset if new target is received, even if busy
         self.trg_steps = new_trg
         self.slewing = self.goto = True
@@ -194,6 +198,10 @@ class MotorController(AuxDevice):
             logger.debug(
                 f"[0x{self.device_id:02x}] Transition: FAST -> SLOW (Steps {self.steps} -> {new_trg})"
             )
+
+        # Reset anti-stall timer for the slow phase
+        if hasattr(self, "_goto_stuck_start"):
+            del self._goto_stuck_start
 
         self.trg_steps = new_trg
         self.slewing = self.goto = True
@@ -222,6 +230,8 @@ class MotorController(AuxDevice):
         return b"\xff" if not self.slewing else b"\x00"
 
     def handle_level_start(self, data: bytes, snd: int, rcv: int) -> bytes:
+        if hasattr(self, "_goto_stuck_start"):
+            del self._goto_stuck_start
         self.trg_steps = 0
         self.slewing = self.goto = True
         self.rate_steps = Decimal(23300)  # 5 deg/sec
@@ -231,6 +241,8 @@ class MotorController(AuxDevice):
         return b"\xff" if self.steps == 0 else b"\x00"
 
     def handle_seek_index(self, data: bytes, snd: int, rcv: int) -> bytes:
+        if hasattr(self, "_goto_stuck_start"):
+            del self._goto_stuck_start
         self.trg_steps = 0
         self.slewing = self.goto = True
         self.rate_steps = Decimal(23300)
