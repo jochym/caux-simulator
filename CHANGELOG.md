@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.23] - 2026-01-27
+### Fixed
+- Stellarium: Made the built-in Stellarium TCP server optional and disabled by default.
+- CLI: Added `--stellarium` flag to enable the server and `--stellarium-port` to customize the listener port.
+- TUI: Fixed a `SyntaxError` in the terminal interface when displaying the Stellarium server status.
+- Config: Fixed a syntax error in the default configuration file (`config.default.toml`) caused by escaped quotes.
+
 ## [0.2.22] - 2026-01-27
 ### Added
 - Phase 3: Mechanical Backlash. Implemented a robust integer hysteresis model separating motor encoder movement from physical telescope pointing.
