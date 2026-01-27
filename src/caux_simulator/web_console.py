@@ -162,38 +162,38 @@ class WebConsole:
                         return f"{sign}{hh:02}:{mm:02}:{ss:04.1f}"
 
                     state = {
-                        "azm": sky_azm * 360.0,
-                        "alt": sky_alt * 360.0,
+                        "azm": float(sky_azm) * 360.0,
+                        "alt": float(sky_alt) * 360.0,
                         "ra": format_hms(ra, is_ra=True),
                         "dec": format_hms(dec, is_ra=False),
                         "lst": format_hms(float(self.obs.sidereal_time()), is_ra=True),
                         "lat": f"{math.degrees(self.obs.lat):.2f}",
                         "lon": f"{math.degrees(self.obs.lon):.2f}",
-                        "v_azm": (
+                        "v_azm": float(
                             self.telescope.azm_rate + self.telescope.azm_guiderate
                         )
                         * 360.0,
-                        "v_alt": (
+                        "v_alt": float(
                             self.telescope.alt_rate + self.telescope.alt_guiderate
                         )
                         * 360.0,
                         "slewing": self.telescope.slewing,
                         "guiding": self.telescope.guiding,
-                        "voltage": self.telescope.bat_voltage / 1e6,
+                        "voltage": float(self.telescope.bat_voltage) / 1e6,
                         "charging": self.telescope.chg_module.charging,
-                        "current": self.telescope.bat_module.current,
+                        "current": float(self.telescope.bat_module.current),
                         "lights": {
-                            "tray": getattr(
-                                self.telescope.bus.devices[0xBF], "lt_tray", 0
+                            "tray": int(
+                                getattr(self.telescope.bus.devices[0xBF], "lt_tray", 0)
                             ),
-                            "logo": getattr(
-                                self.telescope.bus.devices[0xBF], "lt_logo", 0
+                            "logo": int(
+                                getattr(self.telescope.bus.devices[0xBF], "lt_logo", 0)
                             ),
-                            "wifi": getattr(
-                                self.telescope.bus.devices[0xBF], "lt_wifi", 0
+                            "wifi": int(
+                                getattr(self.telescope.bus.devices[0xBF], "lt_wifi", 0)
                             ),
                         },
-                        "timestamp": self.telescope.sim_time,
+                        "timestamp": float(self.telescope.sim_time),
                         "version": __version__,
                         "stars": stars_data,
                     }

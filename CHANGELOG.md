@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.19] - 2026-01-27
+### Fixed
+- Guiding Arithmetic: Implemented exact rational scaling (128/10125) for guiderate commands, eliminating the 2.5 arcmin/15min drift caused by previous floating-point approximations.
+- Web Console: Fixed a telemetry crash caused by non-serializable `Decimal` objects in the WebSocket broadcast loop.
+- Web Console: Improved telemetry robustness with explicit type casting and connection stability fixes.
+- Documentation: Added detailed explanations for internal motor constants and geometric scaling factors.
+
 ## [0.2.18] - 2026-01-26
 ### Fixed
 - Motor Engine: Fully refactored movement accumulator using `decimal.Decimal` (28-digit precision) to eliminate floating-point rounding drift.

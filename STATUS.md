@@ -2,13 +2,12 @@
 
 ## Current Milestone (Phase 1: Stable Core)
 - **High-Fidelity Engine**: 24-bit integer motor controller with `decimal.Decimal` sub-step accumulation (bit-perfect tracking logic).
-- **Handshake Compliance**: Successfully verified with SkySafari 7, SkyPortal, and INDI driver (Evolution device profile).
+- **Exact Guiding Arithmetic**: Corrected guiding scaling factor to 79.1015625 (1024 units/arcsec), eliminating the 2.5' drift.
 - **GOTO Stability**: Hardened state machine with transition logging and anti-stall resets.
 - **Dynamic Synchronization**: Automatic dynamic sync of Location (GEO) and Time/Epoch (Current Epoch) from SkySafari.
 - **Web Interface**: Modular 3D console with tabular telemetry, FOV monitoring (10/20/30 arcmin circles), and remote (0.0.0.0) accessibility.
 
 ## Known Minor Residuals
-- **Residual Drift**: Subtle tracking drift (~2' per 12 min) persists, likely due to quantized client rate commands vs theoretical sidereal speed.
 - **Pointing Error**: ~5-7' discrepancy in Az/Alt despite matching RA/Dec (investigated as transformation model differences).
 
 ## Roadmap

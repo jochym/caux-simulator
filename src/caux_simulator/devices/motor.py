@@ -18,17 +18,21 @@ logger = logging.getLogger(__name__)
 # Set precision for decimal math
 getcontext().prec = 28
 
-# Steps per full revolution (24-bit resolution)
+# Steps per full revolution (24-bit resolution).
+# Celestron motor controllers use a 24-bit integer to represent position.
+# 2^24 = 16777216 steps = 360 degrees.
 STEPS_PER_REV = 16777216
 
-# Slew rates mapping (index 0-9 to steps/sec)
+# Slew rates mapping (index 0-9 to steps/sec).
+# These are standard NexStar slew rates.
+# Index 9 is approx 4.0 deg/sec for high-speed GOTO/Manual slew.
 RATES = {
     0: 0,
-    1: 373,  # 0.008 deg/sec
-    2: 792,  # 0.017 deg/sec
-    3: 1537,  # 0.033 deg/sec
-    4: 3122,  # 0.067 deg/sec
-    5: 6198,  # 0.133 deg/sec
+    1: 373,  # 0.008 deg/sec (~2x sidereal)
+    2: 792,  # 0.017 deg/sec (~4x sidereal)
+    3: 1537,  # 0.033 deg/sec (~8x sidereal)
+    4: 3122,  # 0.067 deg/sec (~16x sidereal)
+    5: 6198,  # 0.133 deg/sec (~32x sidereal)
     6: 23301,  # 0.5 deg/sec
     7: 46603,  # 1.0 deg/sec
     8: 93206,  # 2.0 deg/sec
@@ -58,7 +62,8 @@ class MotorController(AuxDevice):
         self.rate_steps = Decimal(0)  # steps per second
         self.guide_rate_steps = Decimal(0)  # steps per second
 
-        # Max rate (default 10 deg/s in MC units = approx 466033 steps/s)
+        # Max rate (default 10 deg/s in MC units)
+        # 10.0 deg/sec * (16777216 / 360) = 466033.77...
         self.max_rate_steps = Decimal(466033)
         self.use_maxrate = False
         self.approach = 0
@@ -284,12 +289,21 @@ class MotorController(AuxDevice):
         return b""
 
     def set_pos_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        # Scaling based on INDI driver analysis: value / 80.0
-        self.guide_rate_steps = Decimal(unpack_int3_raw(data)) / Decimal(80.0)
+        # Scaling based on geometric analysis:
+        # Logical unit for guiding commands is 1/1024 arcsec/sec.
+        # Steps per arcsecond = 16777216 / (360 * 3600) = 16777216 / 1296000
+        # Scaling Factor (Units -> Steps/sec) = (1/1024) * (16777216 / 1296000)
+        # Factor = 16777216 / (1024 * 1296000) = 16777216 / 1327104000
+        # Simplified Rational Factor = 128 / 10125
+        # Steps/sec = Value * (128 / 10125)
+        val = unpack_int3_raw(data)
+        self.guide_rate_steps = (Decimal(val) * 128) / 10125
         return b""
 
     def set_neg_guiderate(self, data: bytes, snd: int, rcv: int) -> bytes:
-        self.guide_rate_steps = Decimal(-unpack_int3_raw(data)) / Decimal(80.0)
+        # Inverse of positive guiderate
+        val = unpack_int3_raw(data)
+        self.guide_rate_steps = -(Decimal(val) * 128) / 10125
         return b""
 
     def _get_diff(self) -> int:
