@@ -69,7 +69,8 @@ You can override default settings by creating a `config.toml` file in your curre
 Example `config.toml`:
 ```toml
 [observer]
-latitude = 50.0\nlongitude = 20.0
+latitude = 50.0
+longitude = 20.0
 
 [logging]
 level = "DEBUG"
