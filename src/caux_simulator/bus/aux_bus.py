@@ -67,6 +67,9 @@ class AuxBus:
                         f"Ignoring command to non-simulated device {hex(dst_id)}",
                         logging.DEBUG,
                     )
+                    # For testing: if we want to avoid timeouts in test_extensive,
+                    # we should only ignore if we are NOT in a special test mode
+                    # OR just accept that the test will time out on non-simulated devices.
                     continue
 
                 # 3. Always echo the valid packet to the bus (MB behavior)
