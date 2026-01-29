@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.26] - 2026-01-29
+### Fixed
+- Packaging: Included missing subpackages (`bus`, `devices`) in the distribution.
+- Entry point: Fixed `ModuleNotFoundError` when running `caux-sim` from installed package.
+
 ## [0.2.25] - 2026-01-29
 ### Added
 - Automated release script `scripts/release.sh`.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "caux-simulator"
-version = "0.2.25"
+version = "0.2.26"
 description = "Unified Celestron AUX Mount Simulator"
 readme = "README.md"
 authors = [{ name = "Jochym", email = "jochym@ifj.edu.pl" }]
@@ -52,7 +52,7 @@ caux-sim = "caux_simulator.nse_simulator:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-packages = ["caux_simulator"]
+packages = ["caux_simulator", "caux_simulator.bus", "caux_simulator.devices"]
 
 [tool.setuptools.package-data]
 caux_simulator = ["*.toml"]
