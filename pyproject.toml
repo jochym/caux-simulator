@@ -8,14 +8,13 @@ version = "0.2.23"
 description = "Unified Celestron AUX Mount Simulator"
 readme = "README.md"
 authors = [{ name = "Jochym", email = "jochym@ifj.edu.pl" }]
-license = { text = "GPL-3.0-or-later" }
+license = "GPL-3.0-or-later"
 requires-python = ">=3.11"
 keywords = ["celestron", "aux", "indi", "telescope", "simulator", "astronomy"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
