@@ -20,8 +20,8 @@ class GPSReceiver(AuxDevice):
         obs_cfg = config.get("observer", {})
 
         # Convert degrees to [deg, min, sec, 0] format used by NexStar GPS protocol
-        self.lat = self._dec_to_nexstar(float(obs_cfg.get("latitude", 50.1822)))
-        self.lon = self._dec_to_nexstar(float(obs_cfg.get("longitude", 19.7925)))
+        self.lat = self._dec_to_nexstar(float(obs_cfg.get("latitude", 50.0)))
+        self.lon = self._dec_to_nexstar(float(obs_cfg.get("longitude", 20.0)))
         self.linked = True
 
         # Register GPS specific handlers

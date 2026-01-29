@@ -45,8 +45,7 @@ Create a `config.toml` in your working directory to override defaults (latitude,
 Example `config.toml`:
 ```toml
 [observer]
-latitude = 50.1822
-longitude = 19.7925
+latitude = 50.0\nlongitude = 20.0
 
 [simulator.imperfections]
 backlash_steps = 100

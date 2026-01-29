@@ -1,7 +1,6 @@
 [observer]
 name = "Default Location"
-latitude = 50.1822
-longitude = 19.7925
+latitude = 50.0\nlongitude = 20.0
 elevation = 400
 # Epoch: "2000" or "current" (default: current)
 epoch = "current"

@@ -15,8 +15,7 @@ from datetime import datetime, timezone
 
 def verify_altair():
     # 1. Setup Fixed Observer (Your Synced Position)
-    lat_deg = 50.1822
-    lon_deg = 19.7925
+    lat_deg = 50.0\n    lon_deg = 20.0
     elevation = 400
 
     # Use current time (UTC)

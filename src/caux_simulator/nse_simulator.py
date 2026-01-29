@@ -412,8 +412,8 @@ async def main_async():
 
     global telescope
     obs = ephem.Observer()
-    obs.lat = str(obs_cfg.get("latitude", 50.1822))
-    obs.lon = str(obs_cfg.get("longitude", 19.7925))
+    obs.lat = str(obs_cfg.get("latitude", 50.0))
+    obs.lon = str(obs_cfg.get("longitude", 20.0))
     obs.elevation = float(obs_cfg.get("elevation", 400))
     obs.pressure = 0
 
