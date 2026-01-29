@@ -1,4 +1,16 @@
-# Changelog\n\n## [0.2.24] - 2026-01-29\n### Changed\n- Anonymized default geographical coordinates (set to 50.0N, 20.0E).\n- Updated pyproject.toml to use modern SPDX license identifiers.\n\n## [0.2.23] - 2026-01-27
+# Changelog
+
+## [0.2.25] - 2026-01-29
+### Added
+- Automated release script `scripts/release.sh`.
+- GitHub Actions workflow for automatic PyPI publishing on tags.
+
+## [0.2.24] - 2026-01-29
+### Changed
+- Anonymized default geographical coordinates (set to 50.0N, 20.0E).
+- Updated pyproject.toml to use modern SPDX license identifiers.
+
+## [0.2.23] - 2026-01-27
 ### Fixed
 - Stellarium: Made the built-in Stellarium TCP server optional and disabled by default.
 - CLI: Added `--stellarium` flag to enable the server and `--stellarium-port` to customize the listener port.
@@ -78,7 +90,7 @@
 - Time: Anchored virtual sky to simulation start date for perfect clock sync.
 - Epoch: Switched to current epoch (real-time) to match SkySafari 7 default behavior.
 
-## [0.2.9] - 2026-01-26
+## [0.2.11] - 2026-01-26
 ### Fixed
 - Motor Engine: Refactored integer step application to eliminate sub-step rounding accumulation.
 
