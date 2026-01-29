@@ -1,4 +1,4 @@
-# Project Status: Mechanical Fidelity Milestone (v0.2.22)
+# Project Status: Mechanical Fidelity Milestone (v0.2.23)
 
 ## Current Milestone (Phase 3: Mechanical & Geometrical Fidelity)
 - **High-Fidelity Engine**: 24-bit integer motor controller with `decimal.Decimal` sub-step accumulation (bit-perfect tracking logic).
