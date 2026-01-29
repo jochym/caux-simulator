@@ -15,6 +15,7 @@ grep -q "## \[$VERSION\]" CHANGELOG.md || (echo "Error: CHANGELOG.md not updated
 
 # 2. Run tests before release
 echo "Running tests..."
+export PYTHONPATH=$PYTHONPATH:$(pwd)/src
 pytest
 
 # 3. Clean and build for local verification
