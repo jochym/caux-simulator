@@ -1,6 +1,4 @@
-# Changelog
-
-## [0.2.23] - 2026-01-27
+# Changelog\n\n## [0.2.24] - 2026-01-29\n### Changed\n- Anonymized default geographical coordinates (set to 50.0N, 20.0E).\n- Updated pyproject.toml to use modern SPDX license identifiers.\n\n## [0.2.23] - 2026-01-27
 ### Fixed
 - Stellarium: Made the built-in Stellarium TCP server optional and disabled by default.
 - CLI: Added `--stellarium` flag to enable the server and `--stellarium-port` to customize the listener port.
