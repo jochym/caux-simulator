@@ -9,6 +9,7 @@ import subprocess
 import time
 import sys
 import os
+import pytest
 
 
 def send_aux_command(sock, dest, src, cmd, data=b"", ignore_timeout=False):
@@ -34,7 +35,7 @@ def send_aux_command(sock, dest, src, cmd, data=b"", ignore_timeout=False):
         raise
 
 
-def test_sequence(sock):
+def run_test_sequence(sock):
     """Run the sequence of commands that SkySafari typically sends."""
     print("\n--- Testing Extended SkySafari Sequence ---")
 
@@ -99,10 +100,97 @@ def test_sequence(sock):
     print("\n*** ALL TESTS COMPLETED SUCCESSFULLY ***")
 
 
+def test_extensive_protocol():
+    """Run the extensive protocol test sequence."""
+    # Start simulator
+    log_file = "/tmp/extensive_test.log"
+    if os.path.exists(log_file):
+        os.remove(log_file)
+
+    print("\n1. Starting simulator...")
+    sim_proc = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "caux_simulator.nse_simulator",
+            "--text",
+            "--log-file",
+            log_file,
+            "--log-categories",
+            "7",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd="/home/jochym/Projects/indi/caux-simulator",
+        env={**os.environ, "PYTHONPATH": os.path.join(os.getcwd(), "src")},
+    )
+
+    time.sleep(1)
+
+    try:
+        # Try multiple times to connect
+        sock = None
+        for i in range(5):
+            try:
+                print(f"2. Connecting to simulator on port 2000 (attempt {i + 1})...")
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(2.0)
+                sock.connect(("127.0.0.1", 2000))
+                print("   Connected!")
+                break
+            except Exception as e:
+                print(f"   Connection failed: {e}")
+                time.sleep(1)
+
+        if not sock:
+            raise Exception("Failed to connect to simulator")
+
+        # Run test sequence
+        run_test_sequence(sock)
+
+        sock.close()
+        print("\n3. Connection test completed successfully!")
+
+    except Exception as e:
+        print(f"\nERROR: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise e
+
+    finally:
+        print("\n4. Stopping simulator...")
+        sim_proc.terminate()
+        try:
+            sim_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            sim_proc.kill()
+
+    # Analyze results
+    print("\n" + "=" * 80)
+    print("ANALYSIS RESULTS:")
+
+    if os.path.exists(log_file):
+        with open(log_file, "r") as f:
+            log_content = f.read()
+
+        # Count successful responses vs errors
+        response_count = log_content.count("TX Response")  # Match case in logs
+        no_handler_count = log_content.count("No handler")
+
+        print(f"   Total responses sent: {response_count}")
+        print(f"   'No handler' warnings: {no_handler_count}")
+
+        assert response_count > 0, "No responses were logged!"
+    else:
+        pytest.fail("Log file not found!")
+
+
 # Main execution
 if __name__ == "__main__":
     print("Extensive SkySafari Protocol Test")
     print("=" * 80)
+    test_extensive_protocol()
 
     # Start simulator
     log_file = "/tmp/extensive_test.log"
@@ -148,7 +236,7 @@ if __name__ == "__main__":
             raise Exception("Failed to connect to simulator")
 
         # Run test sequence
-        test_sequence(sock)
+        run_test_sequence(sock)
 
         sock.close()
         print("\n3. Connection test completed successfully!")
