@@ -121,10 +121,6 @@ class WebConsole:
                     ]:
                         try:
                             body.compute(self.obs)
-                            if name == "Altair":
-                                logger.info(
-                                    f"Altair Jnow (v{__version__}): RA={body.ra}, Dec={body.dec} (at {self.obs.date})"
-                                )
                             # Check if within FOV
                             dist = ephem.separation(
                                 (body.az, body.alt),

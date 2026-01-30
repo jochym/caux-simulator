@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.27] - 2026-01-29
+### Changed
+- Removed Altair debug position logging from Web Console.
+
 ## [0.2.26] - 2026-01-29
 ### Fixed
 - Packaging: Included missing subpackages (`bus`, `devices`) in the distribution.
