@@ -175,7 +175,7 @@ def test_extensive_protocol():
             log_content = f.read()
 
         # Count successful responses vs errors
-        response_count = log_content.count("TX Response")  # Match case in logs
+        response_count = log_content.count("[PROTO] TX Total:")
         no_handler_count = log_content.count("No handler")
 
         print(f"   Total responses sent: {response_count}")
@@ -190,6 +190,8 @@ def test_extensive_protocol():
 if __name__ == "__main__":
     print("Extensive SkySafari Protocol Test")
     print("=" * 80)
+    test_extensive_protocol()
+
     test_extensive_protocol()
 
     # Start simulator
@@ -265,7 +267,7 @@ if __name__ == "__main__":
             log_content = f.read()
 
         # Count successful responses vs errors
-        response_count = log_content.count("TX Response")  # Match case in logs
+        response_count = log_content.count("[PROTO] TX Total:")
         no_handler_count = log_content.count("No handler")
 
         print(f"   Total responses sent: {response_count}")
