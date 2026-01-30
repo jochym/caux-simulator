@@ -1,9 +1,18 @@
 # Changelog
 
-## [0.2.30] - 2026-01-30
+## [0.2.31] - 2026-01-30
 ### Added
 - Time and Date synchronization via WiFi module (command `0x30`).
 - Unified time management in `NexStarMount` to ensure consistency across TUI, Web Console, and Stellarium.
+- Dedicated time synchronization verification test (`tests/protocol/test_time_sync_logic.py`).
+- Real-time "Time Offset" display in TUI and Web Console.
+- Optional Hand Controller (NexStar+ HC, 0x0D) simulation, enabled via `--hc` flag.
+
+### Fixed
+- Packaging: Included missing subpackages (`bus`, `devices`) in the distribution.
+- Test stability: Refactored `test_extensive.py` to work correctly with `pytest` and fixed a recursion bug.
+- Network robustness: Improved `test_goto_completion.py` handling of packet echoes.
+- Web Console: Removed Altair debug position logging.
 
 ## [0.2.29] - 2026-01-30
 ### Added

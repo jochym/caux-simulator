@@ -164,6 +164,11 @@ class WebConsole:
                         "lst": format_hms(float(self.obs.sidereal_time()), is_ra=True),
                         "lat": f"{math.degrees(self.obs.lat):.2f}",
                         "lon": f"{math.degrees(self.obs.lon):.2f}",
+                        "time_offset": float(
+                            self.telescope.config.get("observer", {}).get(
+                                "time_offset", 0.0
+                            )
+                        ),
                         "v_azm": float(
                             self.telescope.azm_rate + self.telescope.azm_guiderate
                         )
@@ -292,6 +297,7 @@ INDEX_HTML = """
             <div class="telemetry-row"><span class="telemetry-label">RA:</span> <span id="ra" class="yellow telemetry-value">00:00:00.0</span></div>
             <div class="telemetry-row"><span class="telemetry-label">DEC:</span> <span id="dec" class="yellow telemetry-value">+00:00:00.0</span></div>
             <div class="telemetry-row"><span class="telemetry-label">LST:</span> <span id="lst" class="yellow telemetry-value">00:00:00.0</span></div>
+            <div class="telemetry-row"><span class="telemetry-label">Offset:</span> <span id="offset" class="magenta telemetry-value">0.0s</span></div>
             <div class="telemetry-row"><span class="telemetry-label">GEO:</span> <span id="geo" class="cyan telemetry-value">0:00:00, 0:00:00</span></div>
             <div class="telemetry-row"><span class="telemetry-label">Power:</span> <span id="pwr" class="magenta telemetry-value">0.0V</span></div>
             <div class="telemetry-row"><span class="telemetry-label">Status:</span> <span id="status" class="green telemetry-value">IDLE</span></div>
@@ -549,6 +555,7 @@ INDEX_HTML = """
             document.getElementById('ra').innerText = data.ra;
             document.getElementById('dec').innerText = data.dec;
             document.getElementById('lst').innerText = data.lst;
+            document.getElementById('offset').innerText = data.time_offset.toFixed(1) + 's';
             document.getElementById('geo').innerText = data.lat + ', ' + data.lon;
             
             let pwrStr = data.voltage.toFixed(1) + 'V';

@@ -113,6 +113,7 @@ class SimulatorApp(App):
                 yield Static(id="status-mode")
                 yield Static(id="status-tracking")
                 yield Static(id="status-battery")
+                yield Static(id="status-offset")
                 yield Static("")
                 yield Static("IMPERFECTIONS", classes="panel-title")
                 yield Static(id="imp-backlash")
@@ -196,6 +197,10 @@ class SimulatorApp(App):
         )
         self.query_one("#status-battery", Static).update(
             f"Battery: [red]{battery}[/red]"
+        )
+        time_offset = self.telescope.config.get("observer", {}).get("time_offset", 0.0)
+        self.query_one("#status-offset", Static).update(
+            f"Time Offset: [magenta]{time_offset:+.1f}s[/magenta]"
         )
 
         self.query_one("#imp-backlash", Static).update(
