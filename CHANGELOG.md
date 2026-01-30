@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.32] - 2026-01-30
+### Changed
+- Production release: Switched publication target to official PyPI.
+- Updated documentation and internal release protocols.
+
 ## [0.2.31] - 2026-01-30
 ### Added
 - Time and Date synchronization via WiFi module (command `0x30`).

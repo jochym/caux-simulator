@@ -32,7 +32,7 @@ jobs:
         pytest tests/unit
 
   publish:
-    name: Build and publish to TestPyPI
+    name: Build and publish to PyPI
     needs: test
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
@@ -50,7 +50,5 @@ jobs:
       run: python3 -m build
     - name: Check package
       run: twine check dist/*
-    - name: Publish to TestPyPI
+    - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
