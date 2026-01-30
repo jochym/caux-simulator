@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.29] - 2026-01-30
+### Added
+- Optional Hand Controller (NexStar+ HC, 0x0D) simulation, enabled via `--hc` flag.
+- HC firmware version set to 5.35.3177.
+
 ## [0.2.28] - 2026-01-30
 ### Fixed
 - Fixed packaging issue where subpackages were not included.

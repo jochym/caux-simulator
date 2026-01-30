@@ -68,9 +68,7 @@ class NexStarMount:
         # 4. Lights - Version 1.1.16418
         self.bus.register_device(LightController(0xBF, config, version=(1, 1, 64, 34)))
 
-        # 5. Optional devices (Broadcasting, but only those that exist)
-        # GPS (0xB0), Main Board (0x01), HCs (0x04, 0x0D, 0x0E) are SILENT in nsevo.log scan.
-
+        # 5. Optional devices\n        if hc_enabled:\n            # NexStar+ HC - Version 5.35.3177 (0x0D)\n            # nsevo.log scan shows this version\n            self.bus.register_device(GenericDevice(0x0D, config, version=(5, 35, 12, 105))) # 12*256 + 105 = 3177\n\n        # GPS (0xB0), Main Board (0x01), and other HCs are SILENT in nsevo.log scan.\n
         # Sky Model Parameters
         imp = self.config.get("simulator", {}).get("imperfections", {})
         self.cone_error = imp.get("cone_error_arcmin", 0.0) / (360.0 * 60.0)
