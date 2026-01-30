@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.33] - 2026-01-30
+### Added
+- Updated development workflow and release protocol in `AGENTS.md`.
+- Switched production deployment to official PyPI.
+
 ## [0.2.32] - 2026-01-30
 ### Changed
 - Production release: Switched publication target to official PyPI.
