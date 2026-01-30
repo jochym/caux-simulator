@@ -59,25 +59,31 @@ class TestGotoCompletion(unittest.TestCase):
     def exchange(self, dest, src, cmd, data=b""):
         pkt = encode_packet(src, dest, cmd, data)
         self.sock.send(pkt)
-        time.sleep(0.1)  # Increased wait for response
-        resp = self.sock.recv(4096)
-        # Find the response packet (it might be preceded by the echo)
-        try:
-            # Response starts with 0x3B and has correct src/dst
-            # Format: 3B Len Dst Src Cmd ...
-            idx = resp.find(b";", 1)  # Skip the first semicolon (echo)
-            if idx == -1:
-                return resp[len(pkt) :]
+
+        # Read the full response (echo + reply)
+        resp = b""
+        start = time.time()
+        while len(resp) < len(pkt) + 5 and time.time() - start < 1.0:
+            try:
+                chunk = self.sock.recv(4096)
+                if not chunk:
+                    break
+                resp += chunk
+            except socket.timeout:
+                break
+
+        # Find the response
+        idx = resp.find(b";", 1)
+        if idx != -1:
             return resp[idx:]
-        except Exception:
-            return resp[len(pkt) :]
+        return b""
 
     def wait_for_goto(self, dest, timeout=15.0):
         """Polls SLEW_DONE (0x13) until it returns 0xFF."""
         start = time.time()
         while time.time() - start < timeout:
             resp = self.exchange(dest, 0x20, 0x13)
-            if resp and resp[5] == 0xFF:
+            if resp and len(resp) > 5 and resp[5] == 0xFF:
                 return True
             time.sleep(0.2)
         return False

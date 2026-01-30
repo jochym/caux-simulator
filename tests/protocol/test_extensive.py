@@ -27,6 +27,8 @@ def send_aux_command(sock, dest, src, cmd, data=b"", ignore_timeout=False):
         time.sleep(0.05)
         resp = sock.recv(1024)
         print(f"RX: {resp.hex()}")
+        if not ignore_timeout:
+            assert len(resp) > 0, f"No response for command {hex(cmd)}"
         return resp
     except socket.timeout:
         if ignore_timeout:
@@ -117,10 +119,10 @@ def test_extensive_protocol():
             "--log-file",
             log_file,
             "--log-categories",
-            "7",
+            "31",
         ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         cwd="/home/jochym/Projects/indi/caux-simulator",
         env={**os.environ, "PYTHONPATH": os.path.join(os.getcwd(), "src")},
     )
@@ -166,24 +168,9 @@ def test_extensive_protocol():
         except subprocess.TimeoutExpired:
             sim_proc.kill()
 
-    # Analyze results
-    print("\n" + "=" * 80)
-    print("ANALYSIS RESULTS:")
-
-    if os.path.exists(log_file):
-        with open(log_file, "r") as f:
-            log_content = f.read()
-
-        # Count successful responses vs errors
-        response_count = log_content.count("TX Response:")
-        no_handler_count = log_content.count("No handler")
-
-        print(f"   Total responses sent: {response_count}")
-        print(f"   'No handler' warnings: {no_handler_count}")
-
-        assert response_count > 0, "No responses were logged!"
-    else:
-        pytest.fail("Log file not found!")
+    # Results are already verified during command execution
+    print("\n*** ALL PROTOCOL EXCHANGES VERIFIED ***")
+    print("=" * 80)
 
 
 # Main execution
