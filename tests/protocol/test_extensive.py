@@ -175,7 +175,7 @@ def test_extensive_protocol():
             log_content = f.read()
 
         # Count successful responses vs errors
-        response_count = log_content.count("[PROTO] TX Total:")
+        response_count = log_content.count("TX Response:")
         no_handler_count = log_content.count("No handler")
 
         print(f"   Total responses sent: {response_count}")
@@ -191,95 +191,3 @@ if __name__ == "__main__":
     print("Extensive SkySafari Protocol Test")
     print("=" * 80)
     test_extensive_protocol()
-
-    test_extensive_protocol()
-
-    # Start simulator
-    log_file = "/tmp/extensive_test.log"
-    if os.path.exists(log_file):
-        os.remove(log_file)
-
-    print("\n1. Starting simulator...")
-    sim_proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "caux_simulator.nse_simulator",
-            "--text",
-            "--log-file",
-            log_file,
-            "--log-categories",
-            "7",
-        ],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd="/home/jochym/Projects/indi/caux-simulator",
-        env={**os.environ, "PYTHONPATH": os.path.join(os.getcwd(), "src")},
-    )
-
-    time.sleep(1)
-
-    try:
-        # Try multiple times to connect
-        sock = None
-        for i in range(5):
-            try:
-                print(f"2. Connecting to simulator on port 2000 (attempt {i + 1})...")
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(2.0)
-                sock.connect(("127.0.0.1", 2000))
-                print("   Connected!")
-                break
-            except Exception as e:
-                print(f"   Connection failed: {e}")
-                time.sleep(1)
-
-        if not sock:
-            raise Exception("Failed to connect to simulator")
-
-        # Run test sequence
-        run_test_sequence(sock)
-
-        sock.close()
-        print("\n3. Connection test completed successfully!")
-
-    except Exception as e:
-        print(f"\nERROR: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
-
-    finally:
-        print("\n4. Stopping simulator...")
-        sim_proc.terminate()
-        try:
-            sim_proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            sim_proc.kill()
-
-    # Analyze results
-    print("\n" + "=" * 80)
-    print("ANALYSIS RESULTS:")
-
-    if os.path.exists(log_file):
-        with open(log_file, "r") as f:
-            log_content = f.read()
-
-        # Count successful responses vs errors
-        response_count = log_content.count("[PROTO] TX Total:")
-        no_handler_count = log_content.count("No handler")
-
-        print(f"   Total responses sent: {response_count}")
-        print(f"   'No handler' warnings: {no_handler_count}")
-
-        if response_count > 0:
-            print("\n   *** SUCCESS: Commands were processed! ***")
-        else:
-            print("\n   *** WARNING: No responses were logged! ***")
-            sys.exit(1)
-    else:
-        print("   Log file not found!")
-        sys.exit(1)
-
-    print("=" * 80)

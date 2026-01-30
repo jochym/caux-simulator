@@ -6,6 +6,7 @@ Aggregates multiple AUX devices and handles high-level mount state and sky model
 
 import logging
 from typing import Dict, Any, Tuple, Optional
+from datetime import datetime, timezone, timedelta
 from math import pi, sin, tan, radians
 from collections import deque
 from .aux_bus import AuxBus
@@ -30,6 +31,12 @@ class NexStarMount:
     def __init__(self, config: Dict[str, Any], hc_enabled: bool = False):
         self.config = config
         self.sim_time = 0.0
+
+        # Initialize observer config if missing
+        if "observer" not in self.config:
+            self.config["observer"] = {}
+        if "time_offset" not in self.config["observer"]:
+            self.config["observer"]["time_offset"] = 0.0
 
         # Logging/UI State (Preserved for TUI compatibility)
         self.msg_log = deque(maxlen=10)
@@ -210,3 +217,10 @@ class NexStarMount:
             sky_alt += ref_arcmin / (60.0 * 360.0)
 
         return sky_azm % 1.0, sky_alt
+
+    def get_utc_now(self) -> datetime:
+        """Returns the synchronized current UTC time."""
+        from datetime import datetime, timezone, timedelta
+
+        offset = self.config.get("observer", {}).get("time_offset", 0.0)
+        return datetime.now(timezone.utc) + timedelta(seconds=offset)

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.30] - 2026-01-30
+### Added
+- Time and Date synchronization via WiFi module (command `0x30`).
+- Unified time management in `NexStarMount` to ensure consistency across TUI, Web Console, and Stellarium.
+
 ## [0.2.29] - 2026-01-30
 ### Added
 - Optional Hand Controller (NexStar+ HC, 0x0D) simulation, enabled via `--hc` flag.

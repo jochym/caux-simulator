@@ -203,7 +203,8 @@ def make_stellarium_status(tel: NexStarMount, obs: ephem.Observer) -> bytes:
     obs.lat = str(tel.config.get("observer", {}).get("latitude", obs.lat))
     obs.lon = str(tel.config.get("observer", {}).get("longitude", obs.lon))
 
-    obs.date = ephem.now()
+    now_utc = tel.get_utc_now()
+    obs.date = ephem.Date(now_utc)
     obs.epoch = obs.date  # Use JNow
     sky_azm, sky_alt = tel.get_sky_altaz()
     rajnow, decjnow = obs.radec_of(sky_azm * 2 * pi, sky_alt * 2 * pi)
@@ -211,7 +212,7 @@ def make_stellarium_status(tel: NexStarMount, obs: ephem.Observer) -> bytes:
     msg = bytearray(24)
     msg[0:2] = to_le(24, 2)
     msg[2:4] = to_le(0, 2)
-    msg[4:12] = to_le(int(datetime.now(timezone.utc).timestamp()), 8)
+    msg[4:12] = to_le(int(now_utc.timestamp()), 8)
     msg[12:16] = to_le(int(math.floor((rajnow / (2 * pi)) * 4294967296.0)), 4)
     msg[16:20] = to_le(int(math.floor((decjnow / (2 * pi)) * 4294967296.0)), 4)
     return bytes(msg)

@@ -144,7 +144,7 @@ class SimulatorApp(App):
         v_alt = self.telescope.alt_rate * 360.0
         v_azm = self.telescope.azm_rate * 360.0
 
-        now = datetime.now(timezone.utc)
+        now = self.telescope.get_utc_now()
         self.obs.date = ephem.Date(now)
         self.obs.epoch = self.obs.date
         sky_azm, sky_alt = self.telescope.get_sky_altaz()

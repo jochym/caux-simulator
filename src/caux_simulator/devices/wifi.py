@@ -19,6 +19,7 @@ class WiFiModule(AuxDevice):
         # Register Handshake handlers
         self.handlers.update(
             {
+                0x30: self.handle_set_time,
                 0x31: self.handle_set_location,
                 0x32: self.handle_config,
                 0x49: self.handle_ping,
@@ -31,6 +32,46 @@ class WiFiModule(AuxDevice):
         if command_id in self.handlers:
             return self.handlers[command_id](data, sender_id, self.device_id)
         return None
+
+    def handle_set_time(self, data: bytes, snd: int, rcv: int) -> bytes:
+        """WiFi command 0x30 (Set Time/Date)."""
+        from datetime import datetime, timezone, timedelta
+
+        self.log_cmd(snd, "WIFI_SET_TIME", data)
+        # Data format: [SS, MM, HH, DD, MM, YY, Offset, DST]
+        if len(data) == 8:
+            sec, minute, hour, day, month, year, offset, dst = data
+            year += 2000
+
+            # Offset is signed char (timezone offset from UTC)
+            if offset > 127:
+                offset -= 256
+
+            try:
+                # Calculate local time
+                local_time = datetime(year, month, day, hour, minute, sec)
+                # Adjust by offset and DST to get UTC
+                # (Celestron protocol: UTC = LocalTime - (Offset + DST))
+                utc_time = local_time - timedelta(hours=offset + dst)
+                utc_time = utc_time.replace(tzinfo=timezone.utc)
+
+                # Calculate offset from system clock
+                now_utc = datetime.now(timezone.utc)
+                time_diff = (utc_time - now_utc).total_seconds()
+
+                logger.info(
+                    f"WiFi received Time: {local_time} (UTC={utc_time}, offset={offset}, dst={dst})"
+                )
+                logger.info(f"System clock offset: {time_diff:.1f}s")
+
+                if "observer" not in self.config:
+                    self.config["observer"] = {}
+                self.config["observer"]["time_offset"] = time_diff
+
+            except Exception as e:
+                logger.error(f"Error parsing WiFi time: {e}")
+
+        return b"\x01"  # Success
 
     def handle_set_location(self, data: bytes, snd: int, rcv: int) -> bytes:
         """WiFi command 0x31 (Set Location)."""

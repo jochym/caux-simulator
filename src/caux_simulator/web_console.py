@@ -86,10 +86,9 @@ class WebConsole:
                     if lon is not None:
                         self.obs.lon = str(lon)
 
-                    # Sim-time based clock (Continuous & anchored)
-                    self.obs.date = ephem.Date(
-                        self._start_date + self.telescope.sim_time / 86400.0
-                    )
+                    # Synchronized clock
+                    now_utc = self.telescope.get_utc_now()
+                    self.obs.date = ephem.Date(now_utc)
                     self.obs.epoch = self.obs.date  # Use Current Epoch
 
                     sky_azm, sky_alt = self.telescope.get_sky_altaz()
