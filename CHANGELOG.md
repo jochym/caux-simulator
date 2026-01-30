@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.28] - 2026-01-30
+### Fixed
+- Fixed packaging issue where subpackages were not included.
+- Refactored `test_extensive` to work correctly with `pytest`.
+- Removed Altair debug position logging from Web Console.
+
 ## [0.2.27] - 2026-01-29
 ### Changed
 - Removed Altair debug position logging from Web Console.
